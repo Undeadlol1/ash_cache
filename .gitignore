@@ -1,0 +1,19 @@
+# Mix build artifacts and fetched dependencies.
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+
+# VM crash dumps and archives.
+erl_crash.dump
+*.ez
+
+# Package tarball built by "mix hex.build".
+ash_cache-*.tar
+
+# Editor and OS noise.
+.elixir_ls/
+.elixir-tools/
+.lexical/
+.DS_Store
