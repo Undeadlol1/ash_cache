@@ -24,11 +24,11 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   #
   # The bound is therefore how much dead weight every write-heavy test drags
   # through garbage collection, and an entry is a whole result set keyed by a
-  # whole query shape (~3KB apiece here). At 512 that cost dominated: the
-  # 174-day steps regression in GoalUpdaterTest spent 36s, over the suite's
-  # 30s ceiling, of which 20s vanished when the bound came down to 32. A test
-  # process needs a working set, not a history, and no test here reads
-  # anywhere near 32 distinct cached queries inside one generation.
+  # whole query shape (~3KB apiece here). At 512 that cost dominated: one
+  # write-heavy test in the application this was extracted from ran 36s, of
+  # which 20s vanished when the bound came down to 32. A test process needs a
+  # working set, not a history, and no test here reads anywhere near 32
+  # distinct cached queries inside one generation.
   @max_entries_per_store 32
 
   @doc false

@@ -8,7 +8,7 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
   # The verifier is unit-tested against a DSL state rather than by compiling
   # a bad module: Spark runs verifiers from `__verify_spark_dsl__/1` during
   # the module checker, so `assert_raise` around a `defmodule` never sees the
-  # error (same approach as test/ash_telegram/verifiers/*).
+  # error.
 
   alias AshCache.Test.WarmedWidget
   alias Spark.Dsl.Transformer
