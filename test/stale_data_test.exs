@@ -1,6 +1,6 @@
 defmodule AshCache.StaleDataTest do
   @moduledoc """
-  Every way the store can lose, refuse or race the generation counter,
+  Every way the store can lose, refuse or race the cache version counter,
   driven through real reads and writes. Each test ends by proving the read
   returns the value of the last write, never one cached before it.
   """
@@ -24,30 +24,30 @@ defmodule AshCache.StaleDataTest do
     @impl true
     defdelegate get(store, key), to: ProcessLocal
     @impl true
-    def put(_store, {:ash_cache_generation, _}, _value, _opts), do: {:error, :rejected}
+    def put(_store, {:ash_cache_version, _}, _value, _opts), do: {:error, :rejected}
     def put(store, key, value, opts), do: ProcessLocal.put(store, key, value, opts)
     @impl true
-    defdelegate del(store, key), to: ProcessLocal
+    defdelegate delete(store, key), to: ProcessLocal
     @impl true
     defdelegate clear(store), to: ProcessLocal
   end
 
-  @counter {:ash_cache_generation, CachedWidget}
+  @counter {:ash_cache_version, CachedWidget}
 
   defp create!(value) do
     CachedWidget
-    |> Ash.Changeset.for_create(:create, %{name: "w", value: value})
+    |> Ash.Changeset.for_create(:create, %{name: "w", quantity: value})
     |> Ash.create!()
   end
 
   defp update!(widget, value) do
     widget
-    |> Ash.Changeset.for_update(:update, %{value: value})
+    |> Ash.Changeset.for_update(:update, %{quantity: value})
     |> Ash.update!()
   end
 
   defp read_value do
-    [%{value: value}] =
+    [%{quantity: value}] =
       CachedWidget
       |> Ash.Query.for_read(:get_by_name, %{name: "w"})
       |> Ash.read!()
@@ -75,7 +75,7 @@ defmodule AshCache.StaleDataTest do
 
   test "counter missing before any write" do
     widget = create!(1)
-    :ok = Store.del(:ash_cache, @counter)
+    :ok = Store.delete(:ash_cache, @counter)
     assert cache_value() == 1
 
     update!(widget, 2)
@@ -87,11 +87,11 @@ defmodule AshCache.StaleDataTest do
     assert cache_value() == 1
 
     Enum.reduce(2..4, widget, fn value, widget ->
-      :ok = Store.del(:ash_cache, @counter)
+      :ok = Store.delete(:ash_cache, @counter)
       assert cache_value() == value - 1
 
       widget = update!(widget, value)
-      :ok = Store.del(:ash_cache, @counter)
+      :ok = Store.delete(:ash_cache, @counter)
       assert read_value() == value
       widget
     end)
@@ -128,7 +128,7 @@ defmodule AshCache.StaleDataTest do
     # Ash would.
     [key] = cached_keys()
     {:ok, [row]} = Store.get(:ash_cache, key)
-    :ok = Store.put(:ash_cache, key, [%{row | value: 1}], ttl: :infinity)
+    :ok = Store.put(:ash_cache, key, [%{row | quantity: 1}], ttl: :infinity)
     assert read_value() == 1
 
     :ok = AshCache.invalidate(CachedWidget)

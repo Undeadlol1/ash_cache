@@ -77,15 +77,15 @@ defmodule AshCache.MixProject do
       ],
       groups_for_modules: [
         "Public API": [AshCache, AshCache.Resource, AshCache.Supervisor, AshCache.Testing],
-        Configuration: [AshCache.Info, AshCache.Warm],
+        Configuration: [AshCache.Info, AshCache.Refresh],
         "How it works": [
           AshCache.Key,
-          AshCache.Generation,
+          AshCache.CacheVersion,
           AshCache.Coalesce,
           AshCache.Preparations.ReadThrough,
-          AshCache.Changes.BumpGeneration,
+          AshCache.Changes.InvalidateCache,
           AshCache.Resource.Transformers.AttachCacheHooks,
-          AshCache.Resource.Verifiers.ValidateConfig
+          AshCache.Resource.Verifiers.ValidateCacheBlock
         ],
         Storage: [
           AshCache.Store,
@@ -100,7 +100,7 @@ defmodule AshCache.MixProject do
   end
 
   defp description do
-    "Declarative read-through caching for Ash resources, with generation-based invalidation."
+    "Declarative read-through caching for Ash resources, with version-based invalidation."
   end
 
   defp package do

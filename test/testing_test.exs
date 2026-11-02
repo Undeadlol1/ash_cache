@@ -10,7 +10,7 @@ defmodule AshCache.TestingTest do
     |> Ash.read!()
   end
 
-  describe "capture_events/0" do
+  describe "capturing events" do
     setup do
       AshCache.Testing.capture_events()
     end
@@ -57,7 +57,7 @@ defmodule AshCache.TestingTest do
   end
 
   describe "isolation between concurrent tests" do
-    defp capturing_process(parent, name) do
+    defp start_capturing_process(parent, name) do
       spawn_link(fn ->
         id = {:isolation_probe, make_ref()}
 
@@ -86,17 +86,17 @@ defmodule AshCache.TestingTest do
       end
     end
 
-    defp drain(acc) do
+    defp drain(kinds) do
       receive do
-        {:ash_cache, kind, _metadata} -> drain([kind | acc])
+        {:ash_cache, kind, _metadata} -> drain([kind | kinds])
       after
-        0 -> acc
+        0 -> kinds
       end
     end
 
     test "each capturing process only sees its own events" do
-      first = capturing_process(self(), :first)
-      second = capturing_process(self(), :second)
+      first = start_capturing_process(self(), :first)
+      second = start_capturing_process(self(), :second)
       assert_receive {:ready, :first}, 2000
       assert_receive {:ready, :second}, 2000
 

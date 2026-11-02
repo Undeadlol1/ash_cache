@@ -29,8 +29,8 @@ defmodule AshCache.Preparations.ReadThrough do
 
   use Ash.Resource.Preparation
 
+  alias AshCache.CacheVersion
   alias AshCache.Coalesce
-  alias AshCache.Generation
   alias AshCache.Key
   alias AshCache.Store
 
@@ -58,18 +58,18 @@ defmodule AshCache.Preparations.ReadThrough do
 
   defp read_through(query, opts, context, lease) do
     store = Keyword.fetch!(opts, :store)
-    key = derive_key(query, store, context)
+    key = build_key(query, store, context)
 
     case Store.get(store, key) do
       {:ok, nil} ->
         rebuild(query, store, key, opts, context, lease)
 
       {:ok, records} ->
-        emit(:hit, query, store)
+        emit_read_event(:hit, query, store)
         Ash.Query.set_result(query, {:ok, records})
 
       {:error, reason} ->
-        emit(:miss, query, store, error: reason)
+        emit_read_event(:miss, query, store, error: reason)
         query
     end
   end
@@ -77,7 +77,7 @@ defmodule AshCache.Preparations.ReadThrough do
   defp rebuild(query, store, key, opts, context, lease) do
     case Coalesce.join({store, key}) do
       {:shared, records} ->
-        emit(:hit, query, store)
+        emit_read_event(:hit, query, store)
         Ash.Query.set_result(query, {:ok, records})
 
       :retry ->
@@ -88,7 +88,7 @@ defmodule AshCache.Preparations.ReadThrough do
         lead(query, store, key, opts, lease)
 
       :alone ->
-        emit(:miss, query, store, error: nil)
+        emit_read_event(:miss, query, store, error: nil)
         cache_after_read(query, store, key, opts, lease)
     end
   end
@@ -99,11 +99,11 @@ defmodule AshCache.Preparations.ReadThrough do
     case Store.get(store, key) do
       {:ok, records} when not is_nil(records) ->
         release(lease, {:ok, records})
-        emit(:hit, query, store)
+        emit_read_event(:hit, query, store)
         Ash.Query.set_result(query, {:ok, records})
 
       _miss_or_error ->
-        emit(:miss, query, store, error: nil)
+        emit_read_event(:miss, query, store, error: nil)
         cache_after_read(query, store, key, opts, lease)
     end
   end
@@ -121,13 +121,18 @@ defmodule AshCache.Preparations.ReadThrough do
     end
   end
 
-  defp emit(event, query, store, extra \\ []) do
+  defp emit_read_event(event, query, store, extra_metadata \\ []) do
     metadata = %{resource: query.resource, action: query.action.name, store: store}
-    :telemetry.execute([:ash_cache, :read, event], %{}, Map.merge(metadata, Map.new(extra)))
+
+    :telemetry.execute(
+      [:ash_cache, :read, event],
+      %{},
+      Map.merge(metadata, Map.new(extra_metadata))
+    )
   end
 
-  defp derive_key(query, store, context) do
-    generation = Generation.current(store, query.resource)
+  defp build_key(query, store, context) do
+    version = CacheVersion.current(store, query.resource)
 
     # The actor is read from the query at hook time: one passed only to
     # `Ash.read/2` is applied after preparations run, so the preparation
@@ -149,7 +154,7 @@ defmodule AshCache.Preparations.ReadThrough do
       load: query.load
     }
 
-    Key.derive(query.resource, query.action.name, query_shape, generation,
+    Key.build(query.resource, query.action.name, query_shape, version,
       actor: actor_of(query, context),
       tenant: query.tenant
     )
@@ -165,11 +170,11 @@ defmodule AshCache.Preparations.ReadThrough do
   defp cache_after_read(query, store, key, opts, lease) do
     ttl = Keyword.fetch!(opts, :ttl)
     cache_empty? = Keyword.get(opts, :cache_empty?, false)
-    put_opts = Keyword.put(Keyword.get(opts, :adapter_options, []), :ttl, ttl)
+    store_opts = Keyword.put(Keyword.get(opts, :store_options, []), :ttl, ttl)
 
     Ash.Query.after_action(query, fn _query, records ->
       if cacheable?(records, cache_empty?) do
-        Store.put(store, key, records, put_opts)
+        Store.put(store, key, records, store_opts)
       end
 
       release(lease, {:ok, records})

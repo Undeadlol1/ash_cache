@@ -4,22 +4,22 @@ defmodule AshCache.CachedRead do
   whether empty results are kept, and what is passed to the store adapter.
   """
 
-  defstruct [:name, :ttl, cache_empty?: false, adapter_options: [], __spark_metadata__: nil]
+  defstruct [:name, :ttl, cache_empty?: false, store_options: [], __spark_metadata__: nil]
 
   @type t :: %__MODULE__{
           name: atom(),
           ttl: pos_integer() | :infinity | nil,
           cache_empty?: boolean(),
-          adapter_options: keyword(),
+          store_options: keyword(),
           __spark_metadata__: Spark.Dsl.Entity.spark_meta()
         }
 
   @doc """
   The ttl a cached read actually uses: its own, else the block's.
   """
-  @spec effective_ttl(t(), pos_integer() | :infinity) :: pos_integer() | :infinity
-  def effective_ttl(%__MODULE__{ttl: nil}, section_ttl), do: section_ttl
-  def effective_ttl(%__MODULE__{ttl: ttl}, _section_ttl), do: ttl
+  @spec ttl(t(), pos_integer() | :infinity) :: pos_integer() | :infinity
+  def ttl(%__MODULE__{ttl: nil}, block_ttl), do: block_ttl
+  def ttl(%__MODULE__{ttl: ttl}, _block_ttl), do: ttl
 
   @doc false
   def schema do
@@ -41,7 +41,7 @@ defmodule AshCache.CachedRead do
         default: false,
         doc: "Whether empty results ([] or nil) are cached. Off by default."
       ],
-      adapter_options: [
+      store_options: [
         type: :keyword_list,
         default: [],
         doc:

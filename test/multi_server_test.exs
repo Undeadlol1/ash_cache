@@ -8,7 +8,7 @@ defmodule AshCache.MultiServerTest do
 
   use ExUnit.Case, async: false
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Store
   alias AshCache.Test.PartitionedCache
 
@@ -18,7 +18,7 @@ defmodule AshCache.MultiServerTest do
     @moduledoc false
   end
 
-  @counter {:ash_cache_generation, Resource}
+  @counter {:ash_cache_version, Resource}
 
   setup_all do
     unless Node.alive?() do
@@ -75,22 +75,22 @@ defmodule AshCache.MultiServerTest do
   end
 
   test "a write on one server clears cached reads on every server", %{peers: [{_, a}, {_, b}]} do
-    here = Generation.current(PartitionedCache, Resource)
-    assert on(a, Generation, :current, [PartitionedCache, Resource]) == here
+    here = CacheVersion.current(PartitionedCache, Resource)
+    assert on(a, CacheVersion, :current, [PartitionedCache, Resource]) == here
 
-    :ok = on(b, Generation, :bump, [PartitionedCache, Resource])
+    :ok = on(b, CacheVersion, :bump, [PartitionedCache, Resource])
 
-    refute Generation.current(PartitionedCache, Resource) == here
-    refute on(a, Generation, :current, [PartitionedCache, Resource]) == here
+    refute CacheVersion.current(PartitionedCache, Resource) == here
+    refute on(a, CacheVersion, :current, [PartitionedCache, Resource]) == here
   end
 
   test "the server holding the counter leaving never brings back old entries", %{peers: peers} do
-    first = Generation.current(PartitionedCache, Resource)
+    first = CacheVersion.current(PartitionedCache, Resource)
 
     seen =
       Enum.reduce(1..3, [first], fn _, seen ->
-        :ok = Generation.bump(PartitionedCache, Resource)
-        [Generation.current(PartitionedCache, Resource) | seen]
+        :ok = CacheVersion.bump(PartitionedCache, Resource)
+        [CacheVersion.current(PartitionedCache, Resource) | seen]
       end)
 
     counter_node = PartitionedCache.find_node!(@counter)
@@ -103,21 +103,21 @@ defmodule AshCache.MultiServerTest do
 
     :ok = wait_until(fn -> length(on(survivor, PartitionedCache, :nodes, [])) == 2 end)
 
-    refute on(survivor, Generation, :current, [PartitionedCache, Resource]) in seen
+    refute on(survivor, CacheVersion, :current, [PartitionedCache, Resource]) in seen
   end
 
   test "two servers bumping at once both land on new values", %{peers: [{_, a}, {_, b}]} do
-    before = Generation.current(PartitionedCache, Resource)
+    before = CacheVersion.current(PartitionedCache, Resource)
 
     [:ok, :ok] =
       [a, b]
       |> Enum.map(fn node ->
-        Task.async(fn -> on(node, Generation, :bump, [PartitionedCache, Resource]) end)
+        Task.async(fn -> on(node, CacheVersion, :bump, [PartitionedCache, Resource]) end)
       end)
       |> Task.await_many()
 
-    after_both = Generation.current(PartitionedCache, Resource)
+    after_both = CacheVersion.current(PartitionedCache, Resource)
     refute after_both == before
-    assert on(a, Generation, :current, [PartitionedCache, Resource]) == after_both
+    assert on(a, CacheVersion, :current, [PartitionedCache, Resource]) == after_both
   end
 end

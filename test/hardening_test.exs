@@ -15,11 +15,11 @@ defmodule AshCache.HardeningTest do
     AshCache.Testing.capture_events()
   end
 
-  defp create!(name, value), do: create_widget!(CachedWidget, name, value)
+  defp create!(name, quantity), do: create_widget!(CachedWidget, name, quantity)
 
-  defp create_widget!(resource, name, value) do
+  defp create_widget!(resource, name, quantity) do
     resource
-    |> Ash.Changeset.for_create(:create, %{name: name, value: value})
+    |> Ash.Changeset.for_create(:create, %{name: name, quantity: quantity})
     |> Ash.create!()
   end
 
@@ -31,7 +31,7 @@ defmodule AshCache.HardeningTest do
     |> Ash.read!()
   end
 
-  defp cached_values do
+  defp cached_entries do
     for {{:ash_cache_entry, :ash_cache, _key}, {_records, _expires_at}} = entry <- Process.get(),
         do: entry
   end
@@ -46,24 +46,24 @@ defmodule AshCache.HardeningTest do
 
   describe "bulk writes invalidate cached reads" do
     for strategy <- [:atomic, :stream, :atomic_batches] do
-      test "bulk_update with the #{strategy} strategy" do
+      test "a bulk update with the #{strategy} strategy" do
         prime_read_cache()
 
-        result =
-          Ash.bulk_update(CachedWidget, :update, %{value: 9}, strategy: [unquote(strategy)])
+        bulk_result =
+          Ash.bulk_update(CachedWidget, :update, %{quantity: 9}, strategy: [unquote(strategy)])
 
-        assert result.status == :success
+        assert bulk_result.status == :success
         assert Enum.uniq(Events.drain()) == [:invalidate]
 
-        assert Enum.map(Ash.read!(CachedWidget), & &1.value) == [9, 9]
+        assert Enum.map(Ash.read!(CachedWidget), & &1.quantity) == [9, 9]
         assert Events.drain() == [:miss]
       end
 
-      test "bulk_destroy with the #{strategy} strategy" do
+      test "a bulk destroy with the #{strategy} strategy" do
         prime_read_cache()
 
-        result = Ash.bulk_destroy(CachedWidget, :destroy, %{}, strategy: [unquote(strategy)])
-        assert result.status == :success
+        bulk_result = Ash.bulk_destroy(CachedWidget, :destroy, %{}, strategy: [unquote(strategy)])
+        assert bulk_result.status == :success
         assert Enum.uniq(Events.drain()) == [:invalidate]
 
         assert Ash.read!(CachedWidget) == []
@@ -71,11 +71,11 @@ defmodule AshCache.HardeningTest do
       end
     end
 
-    test "bulk_create" do
+    test "a bulk create" do
       prime_read_cache()
 
-      result = Ash.bulk_create([%{name: "c"}, %{name: "d"}], CachedWidget, :create)
-      assert result.status == :success
+      bulk_result = Ash.bulk_create([%{name: "c"}, %{name: "d"}], CachedWidget, :create)
+      assert bulk_result.status == :success
       assert Enum.uniq(Events.drain()) == [:invalidate]
 
       assert length(Ash.read!(CachedWidget)) == 4
@@ -89,16 +89,16 @@ defmodule AshCache.HardeningTest do
 
       widget
       |> Ash.Changeset.for_update(:update, %{})
-      |> Ash.Changeset.atomic_update(:value, Ash.Expr.expr(value + 100))
+      |> Ash.Changeset.atomic_update(:quantity, Ash.Expr.expr(quantity + 100))
       |> Ash.update!()
 
       assert Enum.uniq(Events.drain()) == [:invalidate]
-      assert Enum.sort(Enum.map(Ash.read!(CachedWidget), & &1.value)) == [2, 101]
+      assert Enum.sort(Enum.map(Ash.read!(CachedWidget), & &1.quantity)) == [2, 101]
       assert Events.drain() == [:miss]
     end
   end
 
-  test "AshCache.invalidate/1 makes the next identical read a miss" do
+  test "invalidating by hand makes the next identical read a miss" do
     create!("a", 1)
     get_by_name!("a")
     get_by_name!("a")
@@ -107,7 +107,7 @@ defmodule AshCache.HardeningTest do
     :ok = AshCache.invalidate(CachedWidget)
     assert Enum.uniq(Events.drain()) == [:invalidate]
 
-    assert [%{value: 1}] = get_by_name!("a")
+    assert [%{quantity: 1}] = get_by_name!("a")
     assert Events.drain() == [:miss]
   end
 
@@ -115,12 +115,12 @@ defmodule AshCache.HardeningTest do
     create!("a", 5)
     Events.drain()
 
-    assert [%{value: 5}] = Ash.read!(CachedWidget)
+    assert [%{quantity: 5}] = Ash.read!(CachedWidget)
     narrowed = Ash.read!(Ash.Query.select(CachedWidget, [:name]))
     assert [%{name: "a"}] = narrowed
     assert Events.drain() == [:miss, :miss]
 
-    assert [%{value: 5}] = Ash.read!(CachedWidget)
+    assert [%{quantity: 5}] = Ash.read!(CachedWidget)
     assert Events.drain() == [:hit]
   end
 
@@ -140,9 +140,9 @@ defmodule AshCache.HardeningTest do
   end
 
   describe "per-read ttl" do
-    defp expire_entry_with_lowest_lifetime do
+    defp expire_shortest_lived_entry do
       {entry_key, {records, _expires_at}} =
-        cached_values()
+        cached_entries()
         |> Enum.min_by(fn {_key, {_records, expires_at}} -> expires_at end)
 
       Process.put(entry_key, {records, System.monotonic_time(:millisecond) - 1})
@@ -150,22 +150,22 @@ defmodule AshCache.HardeningTest do
 
     test "an expired short-lived read misses while the long-lived read is still a hit" do
       create_widget!(TwoTtlWidget, "ttl", 0)
-      read_long = fn -> get_widget_by_name!(TwoTtlWidget, "ttl") end
-      read_short = fn -> Ash.read!(Ash.Query.for_read(TwoTtlWidget, :paged)) end
+      read_long_lived = fn -> get_widget_by_name!(TwoTtlWidget, "ttl") end
+      read_short_lived = fn -> Ash.read!(Ash.Query.for_read(TwoTtlWidget, :paged)) end
 
-      read_long.()
-      read_short.()
+      read_long_lived.()
+      read_short_lived.()
       Events.drain()
-      expire_entry_with_lowest_lifetime()
+      expire_shortest_lived_entry()
 
-      read_short.()
-      read_long.()
+      read_short_lived.()
+      read_long_lived.()
 
       assert Events.drain() == [:miss, :hit]
     end
   end
 
-  describe "cache_empty?: true" do
+  describe "caching empty results" do
     test "a cached empty result is replaced once a matching record is created" do
       assert [] = get_widget_by_name!(PartiallyCachedWidget, "late")
       assert [] = get_widget_by_name!(PartiallyCachedWidget, "late")
@@ -174,12 +174,12 @@ defmodule AshCache.HardeningTest do
       create_widget!(PartiallyCachedWidget, "late", 3)
       assert Enum.uniq(Events.drain()) == [:invalidate]
 
-      assert [%{value: 3}] = get_widget_by_name!(PartiallyCachedWidget, "late")
+      assert [%{quantity: 3}] = get_widget_by_name!(PartiallyCachedWidget, "late")
       assert Events.drain() == [:miss]
     end
   end
 
-  test "empty results of a read without cache_empty? are re-read every time" do
+  test "empty results are re-read every time when empty caching is off" do
     assert [] = get_by_name!("absent")
     assert [] = get_by_name!("absent")
     assert Events.drain() == [:miss, :miss]
@@ -187,28 +187,28 @@ defmodule AshCache.HardeningTest do
     create!("absent", 4)
     Events.drain()
 
-    assert [%{value: 4}] = get_by_name!("absent")
+    assert [%{quantity: 4}] = get_by_name!("absent")
   end
 
   test "fifty distinct cached queries between writes stay bounded and the last write still reads fresh" do
     names = Enum.map(1..@distinct_names_between_writes, &"product-#{&1}")
     widgets = Map.new(names, &{&1, create!(&1, 1)})
 
-    for name <- names, do: assert([%{value: 1}] = get_by_name!(name))
+    for name <- names, do: assert([%{quantity: 1}] = get_by_name!(name))
 
     last = List.last(names)
-    assert [%{value: 1}] = get_by_name!(last)
+    assert [%{quantity: 1}] = get_by_name!(last)
     assert Events.drain() |> Enum.count(&(&1 == :hit)) == 1
 
     widgets[last]
-    |> Ash.Changeset.for_update(:update, %{value: 2})
+    |> Ash.Changeset.for_update(:update, %{quantity: 2})
     |> Ash.update!()
 
-    assert [%{value: 2}] = get_by_name!(last)
+    assert [%{quantity: 2}] = get_by_name!(last)
 
-    for name <- List.delete(names, last), do: assert([%{value: 1}] = get_by_name!(name))
+    for name <- List.delete(names, last), do: assert([%{quantity: 1}] = get_by_name!(name))
 
     bound = AshCache.Store.Adapters.ProcessLocal.max_entries_per_store()
-    assert length(cached_values()) <= bound
+    assert length(cached_entries()) <= bound
   end
 end

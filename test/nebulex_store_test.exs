@@ -23,13 +23,13 @@ defmodule AshCache.NebulexStoreTest do
 
   defp create!(value) do
     NebulexWidget
-    |> Ash.Changeset.for_create(:create, %{name: "w", value: value})
+    |> Ash.Changeset.for_create(:create, %{name: "w", quantity: value})
     |> Ash.create!()
   end
 
   defp update!(widget, value) do
     widget
-    |> Ash.Changeset.for_update(:update, %{value: value})
+    |> Ash.Changeset.for_update(:update, %{quantity: value})
     |> Ash.update!()
   end
 
@@ -39,7 +39,7 @@ defmodule AshCache.NebulexStoreTest do
         do: Ash.Query.for_read(NebulexWidget, :get_by_name, %{name: "w"}),
         else: Ash.Query.for_read(NebulexWidget, action)
 
-    [%{value: value}] = Ash.read!(query)
+    [%{quantity: value}] = Ash.read!(query)
     value
   end
 
@@ -88,10 +88,10 @@ defmodule AshCache.NebulexStoreTest do
 
     update!(widget, 2)
     assert read_value() == 2
-    :ok = Store.del(NebulexCache, {:ash_cache_generation, NebulexWidget})
+    :ok = Store.delete(NebulexCache, {:ash_cache_version, NebulexWidget})
 
     update!(widget, 3)
-    :ok = Store.del(NebulexCache, {:ash_cache_generation, NebulexWidget})
+    :ok = Store.delete(NebulexCache, {:ash_cache_version, NebulexWidget})
     assert read_value() == 3
   end
 

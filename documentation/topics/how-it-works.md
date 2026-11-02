@@ -84,13 +84,13 @@ entries contain the record it changed.
 
 ## Filling the cache right after a write
 
-Normally the first read after a write goes to the database. A `warm`
+Normally the first read after a write goes to the database. A `refresh`
 declaration moves that cost to the writer:
 
 ```elixir
 cache do
   read :get_by_sku, ttl: :timer.hours(1)
-  warm :get_by_sku, args: [sku: :sku]
+  refresh :get_by_sku, arguments: [sku: :sku]
 end
 ```
 
@@ -98,7 +98,7 @@ After each successful create or update, AshCache runs the named read with
 arguments taken from the saved record, so the new value is cached before
 anyone asks for it. The read is a real read action, with the same key and
 the same authorization as any other. It runs inside the write, so each
-`warm` makes the write one read slower. If the read fails, the failure is
+`refresh` makes the write one read slower. If the read fails, the failure is
 logged and ignored; the version bump has already removed the stale entry.
 
 ## Seeing what the cache does

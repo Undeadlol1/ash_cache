@@ -155,7 +155,7 @@ defmodule AshCache.StampedeTest do
 
   test "readers finding the version value missing share one new value and one read" do
     Process.put(:ash_cache_adapter, Cachex)
-    :ok = AshCache.Store.del(:ash_cache, {:ash_cache_generation, ProbedWidget})
+    :ok = AshCache.Store.delete(:ash_cache, {:ash_cache_version, ProbedWidget})
     tasks = start_reads(@readers)
 
     leader = next_data_layer_read()

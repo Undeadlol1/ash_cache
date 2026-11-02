@@ -28,11 +28,11 @@ defmodule AshCache.Test.StoreContract do
     cond do
       condition.() -> :ok
       System.monotonic_time(:millisecond) > deadline -> :timeout
-      true -> poll(after_yield(condition), deadline)
+      true -> poll(yield_then(condition), deadline)
     end
   end
 
-  defp after_yield(condition) do
+  defp yield_then(condition) do
     :erlang.yield()
     condition
   end
@@ -45,22 +45,22 @@ defmodule AshCache.Test.StoreContract do
 
       @adapter adapter
 
-      test "get on an unknown key is a miss", %{store: store} do
+      test "reading an unknown key is a miss", %{store: store} do
         assert {:ok, nil} = @adapter.get(store, :unknown)
       end
 
-      test "put then get returns the value", %{store: store} do
+      test "a stored value reads back", %{store: store} do
         assert :ok = @adapter.put(store, :key, "value", [])
         assert {:ok, "value"} = @adapter.get(store, :key)
       end
 
-      test "del removes the value", %{store: store} do
+      test "deleting a key removes its value", %{store: store} do
         :ok = @adapter.put(store, :key, "value", [])
-        assert :ok = @adapter.del(store, :key)
+        assert :ok = @adapter.delete(store, :key)
         assert {:ok, nil} = @adapter.get(store, :key)
       end
 
-      test "clear removes every value", %{store: store} do
+      test "clearing removes every value", %{store: store} do
         :ok = @adapter.put(store, :first, 1, [])
         :ok = @adapter.put(store, :second, 2, [])
         assert :ok = @adapter.clear(store)
@@ -68,18 +68,18 @@ defmodule AshCache.Test.StoreContract do
         assert {:ok, nil} = @adapter.get(store, :second)
       end
 
-      test "an expired ttl is a miss", %{store: store} do
+      test "an expired entry is a miss", %{store: store} do
         :ok = @adapter.put(store, :key, "value", ttl: 1)
 
         assert :ok = wait_until(fn -> @adapter.get(store, :key) == {:ok, nil} end)
       end
 
-      test "a live ttl still returns the value", %{store: store} do
+      test "an entry within its ttl still reads back", %{store: store} do
         :ok = @adapter.put(store, :key, "value", ttl: to_timeout(hour: 1))
         assert {:ok, "value"} = @adapter.get(store, :key)
       end
 
-      test "terms work as keys", %{store: store} do
+      test "any term works as a key", %{store: store} do
         key = {:ash_cache, SomeResource, 0, :read, [], :no_actor}
         :ok = @adapter.put(store, key, [1, 2], [])
         assert {:ok, [1, 2]} = @adapter.get(store, key)
