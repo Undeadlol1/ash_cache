@@ -19,10 +19,10 @@ defmodule AshCache.Key do
   """
 
   @type t ::
-          {:ash_cache, resource :: module(), generation :: non_neg_integer(), action :: atom(),
+          {:ash_cache, resource :: module(), generation :: term(), action :: atom(),
            query_shape :: term(), actor_ref :: term(), tenant_ref :: term()}
 
-  @spec derive(module(), atom(), map(), non_neg_integer(), keyword()) :: t()
+  @spec derive(module(), atom(), map(), term(), keyword()) :: t()
   def derive(resource, action_name, query_shape, generation, opts) do
     {:ash_cache, resource, generation, action_name, normalize(query_shape),
      actor_ref(Keyword.get(opts, :actor)), tenant_ref(Keyword.get(opts, :tenant))}

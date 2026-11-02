@@ -7,9 +7,15 @@ defmodule AshCache.Generation do
   counter makes every previously cached entry unreachable in O(1) — the
   invalidation strategy for writes. Orphaned entries age out via their TTL.
 
-  The bump is read-then-write, not atomic: two concurrent bumps may land on
-  the same new value. That is safe — invalidation only requires that the
-  generation differs from the one embedded in pre-write cache keys.
+  A bump never reads the counter: it writes a fresh unique token
+  (`{node(), unique_integer}`), so two concurrent bumps can never land on the
+  same value. A read-then-increment would let two writers both write N+1, and
+  a reader that derived its key between their commits could cache data
+  missing the second write under a generation that never changes again.
+  With unique tokens, a key derived after the last bump uses the last bump's
+  token, so only a reader that started after every commit can cache under it.
+  The node is part of the token so stores shared between nodes cannot
+  produce colliding values.
 
   A missing counter (a fresh store) self-heals to zero. That is only safe
   because the counter is stored with `pin: true`, so a store which drops
@@ -25,22 +31,20 @@ defmodule AshCache.Generation do
 
   alias AshCache.Store
 
-  @spec current(atom(), module()) :: non_neg_integer()
+  @doc "`0` for a fresh store, otherwise an opaque token: equal only until the next bump."
+  @spec current(atom(), module()) :: term()
   def current(store, resource) do
     case Store.get(store, counter_key(resource)) do
-      {:ok, generation} when is_integer(generation) -> generation
+      {:ok, nil} -> 0
+      {:ok, generation} -> generation
       {:error, _reason} -> :erlang.unique_integer([:positive])
-      _missing -> 0
     end
   end
 
   @spec bump(atom(), module()) :: :ok | {:error, term()}
   def bump(store, resource) do
     result =
-      Store.put(store, counter_key(resource), current(store, resource) + 1,
-        ttl: :infinity,
-        pin: true
-      )
+      Store.put(store, counter_key(resource), fresh_token(), ttl: :infinity, pin: true)
 
     if result == :ok do
       :telemetry.execute([:ash_cache, :invalidate], %{}, %{resource: resource, store: store})
@@ -48,6 +52,8 @@ defmodule AshCache.Generation do
 
     result
   end
+
+  defp fresh_token, do: {node(), :erlang.unique_integer([:monotonic, :positive])}
 
   defp counter_key(resource), do: {:ash_cache_generation, resource}
 end

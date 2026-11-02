@@ -33,7 +33,7 @@ defmodule AshCache.Changes.BumpGenerationTest do
 
     result = {:ok, %{name: "a"}}
     assert complete_transaction(changeset, result) == result
-    assert Generation.current(store, Widget) == 1
+    refute Generation.current(store, Widget) == 0
   end
 
   test "a failed write does not bump the generation", %{store: store, opts: opts} do
@@ -45,7 +45,12 @@ defmodule AshCache.Changes.BumpGenerationTest do
   end
 
   describe "warm-after-write (through real actions)" do
+    alias AshCache.Test.Events
     alias AshCache.Test.WarmedWidget
+
+    setup do
+      AshCache.Testing.capture_events()
+    end
 
     defp wipe_data_layer! do
       {:ok, _table} = Ash.DataLayer.Ets.stop(WarmedWidget)
@@ -123,9 +128,14 @@ defmodule AshCache.Changes.BumpGenerationTest do
         |> Ash.Changeset.for_create(:create, %{name: "doomed"})
         |> Ash.create!()
 
+      assert [_widget] = get_by_name!("doomed")
+      assert Events.drain() == [:invalidate, :miss, :hit]
+
       Ash.destroy!(widget)
+      assert Events.drain() == [:invalidate]
 
       assert [] = get_by_name!("doomed")
+      assert Events.drain() == [:miss]
     end
   end
 end

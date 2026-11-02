@@ -65,7 +65,7 @@ Your adapter has to follow these rules:
 - **A missing key returns `{:ok, nil}`**, not an error.
 - **`put/4` gets a `:ttl`** in milliseconds, or `:infinity`.
 - **`put/4` can get `pin: true`.** That entry must never be removed to make
-  room. AshCache uses it for the counters that make clearing work.
+  room. AshCache uses it for the version values that make clearing work.
 - **`clear/1` removes only the given store's entries**, not everything in
   the backend.
 

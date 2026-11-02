@@ -10,7 +10,7 @@ defmodule AshCacheTest do
 
     assert :ok = AshCache.invalidate(CachedWidget)
 
-    assert Generation.current(:ash_cache, CachedWidget) == 1
+    refute Generation.current(:ash_cache, CachedWidget) == 0
   end
 
   test "clear_store/1 empties the store" do

@@ -39,7 +39,7 @@ defmodule AshCache.Changes.BumpGeneration do
 
   defp warm(changeset, record, warm_specs) do
     Enum.each(warm_specs, fn spec ->
-      case warm_one(changeset.resource, record, spec) do
+      case warm_one(changeset.resource, changeset.tenant, record, spec) do
         {:error, reason} -> log_warm_failure(changeset.resource, spec, reason)
         _warmed -> :ok
       end
@@ -52,15 +52,15 @@ defmodule AshCache.Changes.BumpGeneration do
     Logger.warning("AshCache could not warm #{inspect(resource)}.#{read}: #{inspect(reason)}")
   end
 
-  defp warm_one(resource, record, %Warm{read: read, args: args, actor: actor_mfa}) do
+  defp warm_one(resource, tenant, record, %Warm{read: read, args: args, actor: actor_mfa}) do
     actor = resolve_actor(actor_mfa)
 
     arguments =
       Map.new(args, fn {argument, attribute} -> {argument, Map.get(record, attribute)} end)
 
     resource
-    |> Ash.Query.for_read(read, arguments, actor: actor)
-    |> Ash.read(actor: actor)
+    |> Ash.Query.for_read(read, arguments, actor: actor, tenant: tenant)
+    |> Ash.read(actor: actor, tenant: tenant)
   rescue
     error -> {:error, error}
   catch

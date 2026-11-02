@@ -23,7 +23,7 @@ Set `cache_empty?: true` on the `read` to save them anyway.
 A key is built from:
 
 1. the resource,
-2. the resource's current **version number** (explained below),
+2. the resource's current **version value** (explained below),
 3. the name of the read action,
 4. everything about the query that affects its result: arguments, filter,
    sort, limit, offset, page, distinct, select and load,
@@ -40,15 +40,16 @@ it.
 
 ## On a write
 
-Each resource has a version number stored in the cache next to its
-entries. The number is part of every key.
+Each resource has a version value stored in the cache next to its
+entries. The value is part of every key.
 
-When a create, update or destroy succeeds, AshCache adds one to the number.
-Every key built with the old number is now never looked up again, so all
+When a create, update or destroy succeeds, AshCache replaces the value with
+a new one that has never been used. Every key built with the old value is
+now never looked up again, so all
 of that resource's cached reads are gone in one step, however many there
 were. The old entries are not deleted; they expire on their own.
 
-The number is bumped after the database transaction commits, not before.
+The value is replaced after the database transaction commits, not before.
 A write that is rolled back never reaches that point, so it cannot leave
 wrong data in the cache.
 
@@ -91,7 +92,8 @@ In order from smallest to largest:
 1. **Options in the `cache` block.** See the
    [DSL reference](../dsls/DSL-AshCache.Resource.md).
 2. **Skip the cache for one query.** Pass `context: %{ash_cache: :bypass}`
-   when you build or run the read. It reads from the database and saves
+   when you build the query, or add it with `Ash.Query.set_context/2` before
+   the query runs. It reads from the database and saves
    nothing.
 3. **Clear by hand.** `AshCache.invalidate(resource)` does what a write
    does. `AshCache.clear_store(store)` empties a whole store.
@@ -100,12 +102,12 @@ In order from smallest to largest:
 ## Limits
 
 - **Related records can go stale.** `load` is part of the key, so an entry
-  can contain related records. Version numbers are per resource, though.
-  A write to the related resource bumps its own number, not the parent's,
+  can contain related records. Version values are per resource, though.
+  A write to the related resource changes its own version, not the parent's,
   so the parent entry keeps serving the old related records until it
   expires. Keep `load` off cached reads, or treat `ttl` as how stale that
   data may get.
-- **Writes get slower.** Every write bumps a number in the cache. In one
+- **Writes get slower.** Every write stores a new value in the cache. In one
   write-heavy test suite, caching the resource roughly doubled the suite's
   runtime. Measure before caching a resource that is written to constantly.
 - **No clearing per record.** See "On a write" above.

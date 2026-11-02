@@ -181,6 +181,37 @@ defmodule AshCache.Test.OwnedWidget do
   widget_actions()
 end
 
+defmodule AshCache.Test.ViewerRead do
+  @moduledoc false
+
+  use Ash.Resource.ManualRead
+
+  @impl true
+  def read(_query, _data_layer_query, _opts, context) do
+    {:ok, [struct(AshCache.Test.ViewerWidget, name: context.actor && context.actor.id)]}
+  end
+end
+
+defmodule AshCache.Test.ViewerWidget do
+  @moduledoc "Actor-in-result case: a manual read whose rows depend on the actor but not on the filter."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:with_viewer, ttl: to_timeout(hour: 1))
+  end
+
+  widget_attributes()
+
+  actions do
+    defaults([:read, create: :*])
+
+    read :with_viewer do
+      manual(AshCache.Test.ViewerRead)
+    end
+  end
+end
+
 defmodule AshCache.Test.TwoTtlWidget do
   @moduledoc "Per-read ttl case: two cached reads with different lifetimes."
 
@@ -193,6 +224,120 @@ defmodule AshCache.Test.TwoTtlWidget do
 
   widget_attributes()
   widget_actions()
+end
+
+defmodule AshCache.Test.TenantWidget do
+  @moduledoc "Tenant-isolation case: rows belong to a tenant through an attribute."
+
+  use Ash.Resource,
+    domain: AshCache.Test.Domain,
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [AshCache.Resource]
+
+  ets do
+    private?(true)
+  end
+
+  multitenancy do
+    strategy(:attribute)
+    attribute(:tenant_id)
+  end
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:tenant_id, :string, allow_nil?: false)
+    attribute(:name, :string, allow_nil?: false, public?: true)
+  end
+
+  actions do
+    defaults([:read, create: :*])
+  end
+end
+
+defmodule AshCache.Test.WarmedTenantWidget do
+  @moduledoc "Warm-after-write case on a multi-tenant resource."
+
+  use Ash.Resource,
+    domain: AshCache.Test.Domain,
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [AshCache.Resource]
+
+  ets do
+    private?(true)
+  end
+
+  multitenancy do
+    strategy(:attribute)
+    attribute(:tenant_id)
+  end
+
+  cache do
+    read(:get_by_name, ttl: to_timeout(hour: 1))
+    warm(:get_by_name, args: [name: :name])
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:tenant_id, :string, allow_nil?: false)
+    attribute(:name, :string, allow_nil?: false, public?: true)
+  end
+
+  actions do
+    defaults([:read, create: :*])
+
+    read :get_by_name do
+      get_by(:name)
+    end
+  end
+end
+
+defmodule AshCache.Test.FilteredWidget do
+  @moduledoc "Map-argument case: a cached read taking a map argument."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:filtered, ttl: to_timeout(hour: 1))
+  end
+
+  widget_attributes()
+
+  actions do
+    defaults([:read, create: :*])
+
+    read :filtered do
+      argument(:filters, :map, allow_nil?: false)
+    end
+  end
+end
+
+defmodule AshCache.Test.LabelledWidget do
+  @moduledoc """
+  Warm-args case: the warmed read's argument (`label`) is named differently
+  from the attribute (`name`) that feeds it.
+  """
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:get_by_label, ttl: to_timeout(hour: 1))
+    warm(:get_by_label, args: [label: :name])
+  end
+
+  widget_attributes()
+
+  actions do
+    defaults([:read, create: :*])
+
+    read :get_by_label do
+      argument(:label, :string, allow_nil?: false)
+      filter(expr(name == ^arg(:label)))
+    end
+  end
 end
 
 defmodule AshCache.Test.Domain do
@@ -212,5 +357,10 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.GuardedWidget)
     resource(AshCache.Test.OwnedWidget)
     resource(AshCache.Test.TwoTtlWidget)
+    resource(AshCache.Test.TenantWidget)
+    resource(AshCache.Test.ViewerWidget)
+    resource(AshCache.Test.WarmedTenantWidget)
+    resource(AshCache.Test.FilteredWidget)
+    resource(AshCache.Test.LabelledWidget)
   end
 end

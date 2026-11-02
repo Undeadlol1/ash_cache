@@ -40,9 +40,9 @@ when a requirement demands them.
 - `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`
   re-runs a cached read after each create/update with arguments taken from
   the written record. The entry is cached for that actor only (no actor by
-  default) and without a tenant, so `warm` only helps reads normally called
-  the same way. Do not use it for per-user reads or on multi-tenant
-  resources. Each `warm` costs the writer one extra read.
+  default) and for the written record's tenant, so `warm` only helps reads
+  normally called the same way. Do not use it for per-user reads. Each
+  `warm` costs the writer one extra read.
 - Every successful create/update/destroy clears all cached reads of the
   resource, after commit.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
@@ -63,12 +63,12 @@ when a requirement demands them.
 - The default store is in memory per node. On several nodes a write clears
   the cache only on the node that made it; others serve old entries until
   `ttl`.
-- Do not cache a write-heavy resource without measuring: every write bumps
-  a generation counter in the store.
+- Do not cache a write-heavy resource without measuring: every write also
+  writes a new version value to the store.
 - Do not write cache keys or invalidation by hand. Both are automatic.
-- To skip the cache for one query, pass `context: %{ash_cache: :bypass}` to
-  `Ash.Query.for_read/4` or `Ash.read/2`. Setting it with `set_context`
-  after `for_read` has no effect.
+- To skip the cache for one query, set `context: %{ash_cache: :bypass}`.
+  Pass it to `Ash.Query.for_read/4` or `Ash.read/2`, or call
+  `Ash.Query.set_context/2` before you run the query.
 - To invalidate a resource at runtime (e.g. after a raw SQL import):
   `AshCache.invalidate(Resource)`.
 - To wipe a whole store (all resources in it): `AshCache.clear_store(:name)`.
