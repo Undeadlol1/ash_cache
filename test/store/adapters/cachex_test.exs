@@ -18,4 +18,11 @@ defmodule AshCache.Store.Adapters.CachexTest do
     :ok = @adapter.clear(store)
     assert {:ok, 0} = Cachex.size(store)
   end
+
+  test "an :infinity ttl stores an entry that never expires", %{store: store} do
+    :ok = @adapter.put(store, :forever, "value", ttl: :infinity)
+
+    assert {:ok, nil} = Cachex.ttl(store, :forever)
+    assert {:ok, "value"} = @adapter.get(store, :forever)
+  end
 end
