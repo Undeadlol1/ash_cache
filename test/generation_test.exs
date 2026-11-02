@@ -35,18 +35,21 @@ defmodule AshCache.GenerationTest do
     assert Generation.current(store, SomeResource) == 0
   end
 
-  test "bump increments the generation", %{store: store} do
-    assert :ok = Generation.bump(store, SomeResource)
-    assert Generation.current(store, SomeResource) == 1
+  test "each bump changes the generation to a value never seen before", %{store: store} do
+    seen = [Generation.current(store, SomeResource)]
 
     assert :ok = Generation.bump(store, SomeResource)
-    assert Generation.current(store, SomeResource) == 2
+    first = Generation.current(store, SomeResource)
+    refute first in seen
+
+    assert :ok = Generation.bump(store, SomeResource)
+    refute Generation.current(store, SomeResource) in [first | seen]
   end
 
   test "resources have independent generations", %{store: store} do
     :ok = Generation.bump(store, SomeResource)
 
-    assert Generation.current(store, SomeResource) == 1
+    refute Generation.current(store, SomeResource) == 0
     assert Generation.current(store, OtherResource) == 0
   end
 
@@ -86,12 +89,13 @@ defmodule AshCache.GenerationTest do
       {:ok, store: store}
     end
 
-    test "bump succeeds and increments", %{store: store} do
+    test "bump succeeds and changes the generation each time", %{store: store} do
       assert :ok = Generation.bump(store, SomeResource)
-      assert Generation.current(store, SomeResource) == 1
+      first = Generation.current(store, SomeResource)
+      refute first == 0
 
       assert :ok = Generation.bump(store, SomeResource)
-      assert Generation.current(store, SomeResource) == 2
+      refute Generation.current(store, SomeResource) in [0, first]
     end
 
     test "the counter outlives ordinary cached entries", %{store: store} do
@@ -103,7 +107,57 @@ defmodule AshCache.GenerationTest do
                  AshCache.Store.get(store, :short_lived) == {:ok, nil}
                end)
 
-      assert Generation.current(store, SomeResource) == 1
+      refute Generation.current(store, SomeResource) == 0
+    end
+  end
+
+  describe "two writes committing concurrently" do
+    setup do
+      store = :"generation_race_#{System.unique_integer([:positive])}"
+      start_supervised!(%{id: store, start: {Cachex, :start_link, [store, []]}})
+
+      previous = Process.get(:ash_cache_adapter)
+      Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Cachex)
+      on_exit(fn -> StoreContract.restore_adapter(previous) end)
+
+      {:ok, store: store}
+    end
+
+    test "never leave the generation a reader could already have cached under", %{store: store} do
+      before_either = Generation.current(store, SomeResource)
+      first = start_bump(store)
+      second = start_bump(store)
+
+      after_first = finish_bump(first)
+      after_both = finish_bump(second)
+
+      refute after_first == before_either
+      refute after_both == before_either
+      refute after_both == after_first
+    end
+
+    defp start_bump(store) do
+      owner = self()
+
+      task =
+        Task.async(fn ->
+          Process.put(:ash_cache_adapter, AshCache.Test.GatedCounterReadAdapter)
+          Process.put(:gate_owner, owner)
+          Generation.bump(store, SomeResource)
+        end)
+
+      receive do
+        {:read_counter, pid, _value} when pid == task.pid -> {:blocked, task, store}
+        {ref, :ok} when ref == task.ref -> {:done, Generation.current(store, SomeResource)}
+      end
+    end
+
+    defp finish_bump({:done, generation}), do: generation
+
+    defp finish_bump({:blocked, task, store}) do
+      send(task.pid, :proceed)
+      assert :ok = Task.await(task)
+      Generation.current(store, SomeResource)
     end
   end
 
@@ -117,11 +171,11 @@ defmodule AshCache.GenerationTest do
     test "the counter survives an overflow of distinct cached query shapes" do
       assert :ok = Generation.bump(:ash_cache, __MODULE__)
       before = Generation.current(:ash_cache, __MODULE__)
-      assert before > 0
+      refute before == 0
 
       overflow_the_bound_with_distinct_query_shapes()
 
-      assert Generation.current(:ash_cache, __MODULE__) >= before
+      assert Generation.current(:ash_cache, __MODULE__) == before
     end
 
     defp overflow_the_bound_with_distinct_query_shapes do
