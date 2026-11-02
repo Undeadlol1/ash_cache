@@ -17,18 +17,11 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
   end
 
   defp verify_reads(dsl_state) do
-    case Verifier.get_option(dsl_state, [:cache], :reads) do
-      :all -> :ok
-      read_names -> validate_read_names(dsl_state, read_names)
-    end
+    validate_read_names(dsl_state, Verifier.get_option(dsl_state, [:cache], :reads))
   end
 
   defp verify_warms(dsl_state) do
-    cached_reads =
-      case Verifier.get_option(dsl_state, [:cache], :reads) do
-        :all -> read_action_names(dsl_state)
-        read_names -> MapSet.new(read_names)
-      end
+    cached_reads = MapSet.new(Verifier.get_option(dsl_state, [:cache], :reads))
 
     dsl_state
     |> Verifier.get_entities([:cache])

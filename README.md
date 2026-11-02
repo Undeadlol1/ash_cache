@@ -5,32 +5,22 @@
 [![CI](https://github.com/Undeadlol1/ash_cache/actions/workflows/ci.yml/badge.svg)](https://github.com/Undeadlol1/ash_cache/actions/workflows/ci.yml)
 [![License](https://img.shields.io/hexpm/l/ash_cache.svg)](https://github.com/Undeadlol1/ash_cache/blob/main/LICENSE)
 
-Declarative read-through caching for [Ash](https://hexdocs.pm/ash) resources.
+A cache for [Ash](https://hexdocs.pm/ash) resources. Reads come back from
+memory instead of the database, and the cache clears itself when the data
+changes.
 
-Add one empty block to a resource and its reads are cached. Writes to that
-resource clear the cache on their own. There is nothing else to wire up.
+## What you get
 
-## Why AshCache
-
-Caching by hand means inventing keys, remembering to clear them on every
-write, and hoping nobody reads the data through a query you forgot about.
-AshCache uses what Ash already knows about your resource instead:
-
-- **One block caches every read.** Keys are derived from the action and the
-  full query (arguments, filter, sort, pagination), so two different queries
-  never share an entry.
-- **Writes invalidate for you.** Every successful create, update or destroy
-  bumps a per-resource generation counter after the transaction commits. A
-  rolled-back write changes nothing.
-- **Actor and tenant are always part of the key.** A cache hit can only
-  return what that same actor and tenant already read through normal
-  authorization.
-- **Tests stay isolated.** A process-local store adapter gives every
-  `async: true` test its own cache with no setup.
+- **You pick what is cached.** List the reads to cache in a `cache` block on
+  the resource.
+- **No manual clearing.** When a record is created, updated or deleted, the
+  cache for that resource is cleared.
+- **No data leaks between users.** Each user and each tenant has their own
+  cached results.
 
 ## Installation
 
-Add `ash_cache` to your dependencies:
+Add the package to `mix.exs`:
 
 ```elixir
 def deps do
@@ -40,7 +30,7 @@ def deps do
 end
 ```
 
-Start the cache stores from your application's supervision tree:
+Add the supervisor to your application. It starts the cache stores:
 
 ```elixir
 # lib/my_app/application.ex
@@ -50,9 +40,9 @@ children = [
 ]
 ```
 
-That is all the setup. No application config is required.
+## Usage
 
-## Quick start
+Add the extension to a resource and list the reads to cache:
 
 ```elixir
 defmodule MyApp.Shop.Product do
@@ -61,69 +51,60 @@ defmodule MyApp.Shop.Product do
     extensions: [AshCache.Resource]
 
   cache do
+    reads [:get_by_sku]
   end
 end
 ```
 
-That is the whole change. Every read action on `Product` is now cached for one
-hour, and every write to `Product` invalidates those entries.
+The `get_by_sku` read now comes from the cache. Other reads go to the
+database as before. Entries expire after an hour, and the cache clears when
+a product is created, updated or deleted.
 
-Tune it only when you need to:
+To change how long entries live, set `ttl`:
 
 ```elixir
 cache do
-  ttl :timer.minutes(5)                  # entries live five minutes
-  reads [:get_by_sku]                    # cache only this read action
-  warm :get_by_sku, args: [sku: :sku]    # re-cache right after each write
+  reads [:get_by_sku]
+  ttl :timer.minutes(5)
 end
 ```
 
-## Guides
+The [Examples](documentation/topics/examples.md) page has a block for each
+common situation.
 
-### Topics
+## Learn more
 
-- [Examples](documentation/topics/examples.md): a `cache` block for each
-  common situation, from one cached lookup to a custom store.
-- [How It Works](documentation/topics/how-it-works.md): cache keys,
-  generation-based invalidation, write-through warming, and the escape hatches.
-- [Testing](documentation/topics/testing.md): isolated async tests with the
-  process-local adapter.
+- [Examples](documentation/topics/examples.md): the `cache` block for each
+  common situation.
+- [How to test with AshCache](documentation/topics/testing.md): keep
+  parallel tests apart, turn caching off for one test.
+- [How AshCache works](documentation/topics/how-it-works.md): what goes in
+  a cache key, how clearing works, and the limits.
+- [DSL reference](documentation/dsls/DSL-AshCache.Resource.md): every
+  option in the `cache` block.
 
-### Reference
+## Limits
 
-- [DSL: AshCache.Resource](documentation/dsls/DSL-AshCache.Resource.md):
-  every option in the `cache` block.
-- [Module docs on HexDocs](https://hexdocs.pm/ash_cache).
-
-## Status
-
-Version 0.1. Extracted from a production application, where it caches two
-resources. Three limits are deliberate in this version:
-
-- **Invalidation is per resource, not per key.** With automatically derived
-  keys, a write cannot know every query shape that cached its resource, so a
-  write clears all of that resource's entries.
-- **Loaded relationships can go stale.** A write to a related resource bumps
-  that resource's counter, not the parent's. Keep `load` off cached reads, or
-  accept the TTL as the staleness window.
-- **Writes cost a little more.** Every write bumps a counter. One
-  write-heavy test suite roughly doubled in runtime after its resource was
-  cached. Measure before caching a write-heavy resource.
+- **The cache clears per resource, not per record.** Any write to a
+  resource clears every cached read of that resource.
+- **Related records can go stale.** A cached read that loads related
+  records keeps the old related records until the entry expires. Keep
+  `load` off cached reads, or choose a short `ttl`.
+- **Writes get a little slower.** Each write has to clear the cache.
+  Measure before caching a resource that is written to constantly.
 
 ## For AI assistants
 
 <details>
 <summary>Instructions for coding agents (Claude Code, Cursor, Copilot, ...)</summary>
 <p>
-Everything above is written for people. The text for machines is
-<a href="https://github.com/Undeadlol1/ash_cache/blob/main/usage-rules.md"><code>usage-rules.md</code></a>:
-a short, imperative set of rules for an agent writing code that uses
-AshCache. It ships inside the Hex package, so after <code>mix deps.get</code>
-it is at <code>deps/ash_cache/usage-rules.md</code>. Point your agent at that
-file, or, if your project already uses the
-<a href="https://hexdocs.pm/usage_rules"><code>usage_rules</code></a> package,
-add <code>:ash_cache</code> to its list. Nothing is added to your project
-unless you do one of those.
+The file for agents is
+<a href="https://github.com/Undeadlol1/ash_cache/blob/main/usage-rules.md"><code>usage-rules.md</code></a>.
+It ships inside the package, so after <code>mix deps.get</code> it is at
+<code>deps/ash_cache/usage-rules.md</code>. Point your agent at that file.
+If your project uses the
+<a href="https://hexdocs.pm/usage_rules"><code>usage_rules</code></a>
+package, add <code>:ash_cache</code> to its list instead.
 </p>
 </details>
 

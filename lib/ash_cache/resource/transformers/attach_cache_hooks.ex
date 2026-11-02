@@ -37,7 +37,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     |> Transformer.get_entities([:actions])
     |> Enum.reduce(dsl_state, fn action, dsl_state ->
       cond do
-        action.type == :read and cached_read?(action, cached_reads) ->
+        action.type == :read and action.name in cached_reads ->
           attach_preparation(dsl_state, action, read_opts)
 
         action.type in @write_types ->
@@ -49,9 +49,6 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     end)
     |> then(&{:ok, &1})
   end
-
-  defp cached_read?(_action, :all), do: true
-  defp cached_read?(action, read_names), do: action.name in read_names
 
   defp attach_preparation(dsl_state, action, read_opts) do
     preparation =

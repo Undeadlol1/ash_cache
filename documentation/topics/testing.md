@@ -1,50 +1,50 @@
-# Testing
+# How to test with AshCache
 
-A shared cache is the enemy of `async: true`: one test's cached read leaks
-into another test's assertions. AshCache solves this with a store adapter
-that keeps every process's entries in that process's own dictionary.
+This guide shows you how to keep parallel tests from sharing a cache, how
+to turn caching off for one test, and how to check that something was
+cached.
 
-## Set the adapter
+## Keep parallel tests apart
+
+By default every process on the node shares one cache, so a cached read in
+one test can show up in another. Switch the test environment to the
+process-local store, which gives each test process its own cache:
 
 ```elixir
 # config/test.exs
 config :ash_cache, adapter: AshCache.Store.Adapters.ProcessLocal
 ```
 
-That is the whole setup. Every test process gets a private, empty cache, so
-tests cannot observe each other and need no cleanup.
+Tests marked `async: true` now cannot see each other's cached data.
 
-The `AshCache.Supervisor` can stay in your application's children; the
-Cachex stores it starts are simply never used while the process-local adapter
-is active.
+## Turn caching off for one test
 
-## Asserting on cache behaviour
-
-Most tests should not care whether a read was served from cache. When one
-does, read twice and change the data in between through a path AshCache does
-not see, such as a raw repo update. A cached read returns the old value; a
-bypassed read returns the new one:
-
-```elixir
-query = Ash.Query.set_context(MyApp.Shop.Product, %{ash_cache: :bypass})
-```
-
-To invalidate by hand inside a test, call `AshCache.invalidate(resource)`.
-
-## Turning caching off for one test
-
-Override the adapter for the current process only:
+To make every read in the current test hit the database, switch that
+process to the store that saves nothing:
 
 ```elixir
 Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Noop)
 ```
 
-Every read in that process is a miss and nothing is stored. The override
-dies with the process, so no cleanup is needed.
+## Check that a read was cached
 
-## Writing your own adapter
+Read once, change the data without going through Ash (for example with a
+direct `Repo.update_all`), then read again. A cached read returns the old
+value. To compare against the database, read a third time with the cache
+skipped:
 
-If you implement `AshCache.Store.Adapter`, the package's own contract test
-is a good template: it runs the same `get`, `put`, `del`, `clear` and TTL
-checks against every shipped adapter. Copy the pattern and point it at
-yours.
+```elixir
+MyApp.Shop.Product
+|> Ash.Query.set_context(%{ash_cache: :bypass})
+|> Ash.read!()
+```
+
+To clear a resource's cache by hand inside a test, call
+`AshCache.invalidate(MyApp.Shop.Product)`.
+
+## Test your own store adapter
+
+If you wrote an adapter, copy the package's contract test
+(`test/support/store_contract.ex` in the repository). It runs the same
+`get`, `put`, `del`, `clear` and expiry checks against every adapter that
+ships with the package.

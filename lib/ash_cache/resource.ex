@@ -1,8 +1,6 @@
 defmodule AshCache.Resource do
   @moduledoc """
-  Declarative read-through caching for an Ash resource.
-
-  The zero-config case is the whole point — opt in and every default applies:
+  Caches the read actions you list.
 
       defmodule MyApp.Shop.Product do
         use Ash.Resource,
@@ -10,33 +8,20 @@ defmodule AshCache.Resource do
           extensions: [AshCache.Resource]
 
         cache do
+          reads [:get_by_sku]
         end
       end
 
-  That alone means:
+  With only `reads` set:
 
-    * every read action is cached (key: action + the full query shape +
-      actor + tenant — see `AshCache.Key`)
-    * results live for one hour in the app-wide `:ash_cache` store
-    * every create/update/destroy automatically invalidates the resource's
-      cached reads after commit (see `AshCache.Changes.BumpGeneration`)
+    * the listed reads are cached, keyed by the action, the whole query,
+      the actor and the tenant (see `AshCache.Key`)
+    * entries live for one hour in the shared `:ash_cache` store
+    * every create, update or destroy clears the resource's cached reads
+      after the transaction commits (see `AshCache.Changes.BumpGeneration`)
     * empty results are not cached
-    * async tests are isolated via the process-local adapter (test config)
 
-  Escape hatches, in increasing depth:
-
-      cache do
-        ttl :timer.minutes(5)          # how long entries live
-        store :products_cache          # a dedicated store for this resource
-        reads [:get_by_sku]            # cache only these read actions
-        cache_empty? true              # cache empty results too
-        adapter_options [limit: 1_000] # passed verbatim to the store adapter
-      end
-
-  Beyond the DSL: bypass one query with
-  `Ash.Query.set_context(query, %{ash_cache: :bypass})`, or swap the storage
-  adapter (`config :ash_cache, adapter: ...` or
-  `Process.put(:ash_cache_adapter, ...)`).
+  Reads that are not listed are never cached.
   """
 
   @warm %Spark.Dsl.Entity{
@@ -51,7 +36,7 @@ defmodule AshCache.Resource do
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Read-through caching configuration. An empty block uses every default.",
+    describe: "Which reads to cache, and how.",
     entities: [@warm],
     schema: [
       ttl: [
@@ -65,9 +50,9 @@ defmodule AshCache.Resource do
         doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
       ],
       reads: [
-        type: {:or, [{:list, :atom}, {:in, [:all]}]},
-        default: :all,
-        doc: "Read action names to cache, or :all (the default)."
+        type: {:list, :atom},
+        required: true,
+        doc: "The read actions to cache. Reads not listed are never cached."
       ],
       cache_empty?: [
         type: :boolean,

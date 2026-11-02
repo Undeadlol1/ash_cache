@@ -18,17 +18,17 @@ when a requirement demands them.
 
 ## Caching a resource
 
-- Add `extensions: [AshCache.Resource]` to `use Ash.Resource` and an empty
-  `cache do end` block. That is the complete, recommended configuration.
-- Defaults: every read action cached, TTL one hour, store `:ash_cache`,
-  empty results not cached, every create/update/destroy invalidates the
-  resource after commit.
-- Options inside `cache do`:
+- Add `extensions: [AshCache.Resource]` to `use Ash.Resource` and a
+  `cache do reads [:action, ...] end` block. `reads` is required and lists
+  exactly the read actions to cache; unlisted reads are never cached. There
+  is no `:all`. Every name must be a read action on the resource, or
+  compilation fails.
+- Cache only reads that are hot and tolerate staleness up to the TTL.
+- Defaults: TTL one hour, store `:ash_cache`, empty results not cached,
+  every create/update/destroy invalidates the resource after commit.
+- Other options inside `cache do`:
   - `ttl` milliseconds, e.g. `ttl :timer.minutes(5)`.
   - `store :name` to give the resource its own Cachex store.
-  - `reads [:action, ...]` to cache only those read actions. Every name
-    must be a read action on the resource; the verifier rejects anything
-    else at compile time.
   - `cache_empty? true` to cache `[]` and `nil` results.
   - `adapter_options [...]` passed verbatim to the adapter's `put/4`.
   - `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`

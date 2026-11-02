@@ -5,10 +5,10 @@ defmodule AshCache.InfoTest do
   alias AshCache.Test.PartiallyCachedWidget
   alias AshCache.Test.Widget
 
-  test "an empty cache block reports every default" do
+  test "a block naming only its reads reports every other default" do
     assert AshCache.Info.cache_ttl!(CachedWidget) == to_timeout(hour: 1)
     assert AshCache.Info.cache_store!(CachedWidget) == :ash_cache
-    assert AshCache.Info.cache_reads!(CachedWidget) == :all
+    assert AshCache.Info.cache_reads!(CachedWidget) == [:read, :get_by_name, :paged]
     assert AshCache.Info.cache_cache_empty?(CachedWidget) == false
   end
 

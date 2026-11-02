@@ -3,7 +3,7 @@ defmodule AshCache.Test.WidgetScaffold do
   The scaffolding every widget fixture in this file shares.
 
   Each fixture exists to exercise one AshCache configuration — no caching,
-  the flagship empty `cache do` block, or narrowed escape-hatch options —
+  the flagship block that caches every read, or narrowed options —
   and they differ only in that configuration. The ETS-backed resource
   (private, so per-process — matching the async-test isolation of the
   ProcessLocal store adapter), the attributes, and the actions live here so
@@ -89,13 +89,14 @@ end
 
 defmodule AshCache.Test.CachedWidget do
   @moduledoc """
-  The flagship zero-config case: an empty `cache do` block, every default.
+  The flagship case: every read cached, every other option left at its default.
   The extra `prepare` proves attached preparations survive the transformer.
   """
 
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   cache do
+    reads([:read, :get_by_name, :paged])
   end
 
   widget_attributes()
@@ -132,6 +133,7 @@ defmodule AshCache.Test.WarmedWidget do
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   cache do
+    reads([:get_by_name])
     warm(:get_by_name, args: [name: :name])
   end
 
@@ -152,6 +154,7 @@ defmodule AshCache.Test.GuardedWidget do
     read_policy: actor_present()
 
   cache do
+    reads([:read])
   end
 
   widget_attributes()
@@ -171,6 +174,7 @@ defmodule AshCache.Test.OwnedWidget do
     read_policy: expr(name == ^actor(:id))
 
   cache do
+    reads([:read])
   end
 
   widget_attributes()

@@ -5,8 +5,8 @@
 First packaged release. Extracted from the application it was written in,
 where it caches two production resources.
 
-- `AshCache.Resource` extension: an empty `cache do` block caches every read
-  action, keyed by action, arguments, query shape, actor and tenant.
+- `AshCache.Resource` extension: `cache do reads [...] end` caches the listed
+  read actions, keyed by action, arguments, query shape, actor and tenant.
 - Generation-based invalidation: a successful write bumps the resource's
   counter in `after_transaction`, so a rolled-back write cannot leave stale
   entries behind and old entries become unreachable in O(1).

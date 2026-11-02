@@ -1,107 +1,107 @@
-# How It Works
+# How AshCache works
 
-AshCache hooks into two places in an Ash resource: a preparation on every
-cached read action, and a change on every create, update and destroy. This
-guide walks through both and then the escape hatches around them.
+This page explains what AshCache does on a read, what it does on a write,
+and why it has the limits it has.
 
-## The read path
+## On a read
 
-Each cached read action gets a preparation
-(`AshCache.Preparations.ReadThrough`). Before the data layer runs, it derives
-a key from the query and looks it up in the store:
+Every read listed in `reads` gets a step that runs before the database is
+asked anything. The step builds a key from the query and looks it up in
+the cache.
 
-- **Hit**: the cached records are returned and the data layer is skipped.
-- **Miss**: the read runs normally and, if it returned at least one record,
-  the result is stored under that key with the resource's TTL.
+- If the key is found, the stored records are returned and the database
+  is not called.
+- If it is not found, the read runs as normal. If it returned at least one
+  record, the result is saved under that key.
 
-Empty results are not cached by default, so a row that does not exist yet
-cannot be "remembered" as missing. Set `cache_empty? true` to change that.
+Empty results are not saved by default. Otherwise a record that does not
+exist yet would keep being reported as missing until the entry expired.
+Set `cache_empty? true` to save them anyway.
 
-## The key
+## What is in a key
 
-A key is a plain Erlang term built by `AshCache.Key` from:
+A key is built from:
 
-1. the resource module,
-2. the resource's current **generation** (see below),
-3. the read action name,
-4. the full query shape: arguments, `filter`, `sort`, `limit`, `offset`,
-   `page`, `distinct`, `select` and `load`,
-5. the **actor** and the **tenant**.
+1. the resource,
+2. the resource's current **version number** (explained below),
+3. the name of the read action,
+4. everything about the query that affects its result: arguments, filter,
+   sort, limit, offset, page, distinct, select and load,
+5. the current actor and tenant.
 
-Because the full query is in the key, `Ash.get/2`, an ad-hoc filter, and a
-paginated list each get their own entry. Because the actor is in the key, a
-hit can only serve what that same actor already read through full
-authorization. The policy authorizer folds its filter checks into
-`query.filter` before the key is derived, so a read run with
-`authorize?: false` keys differently from the same actor's authorized read and
-can never answer it.
+Because the whole query is in the key, a lookup by id, a filtered list and
+page two of a list each get their own entry.
 
-## Invalidation by generation
+Because the actor is in the key, a cached result can only be returned to
+the user who read it in the first place. Ash applies its policy filters to
+the query before the key is built, so a read made with `authorize?: false`
+gets a different key from the same user's normal read and can never answer
+it.
 
-Every resource has a generation counter stored in the same store as its
-entries (`AshCache.Generation`). The counter is part of every key.
+## On a write
 
-A successful write bumps the counter (`AshCache.Changes.BumpGeneration`) in
-the action's `after_transaction` hook, never in `after_action`. That ordering
-matters: a write that rolls back never reaches `after_transaction`, so it
-cannot leave stale entries behind.
+Each resource has a version number stored in the cache next to its
+entries. The number is part of every key.
 
-After a bump, every key built with the old generation is simply never looked
-up again. Old entries are not deleted one by one; they age out with their
-TTL. Invalidation is therefore O(1) no matter how many query shapes were
-cached.
+When a create, update or destroy succeeds, AshCache adds one to the number.
+Every key built with the old number is now never looked up again, so all
+of that resource's cached reads are gone in one step, however many there
+were. The old entries are not deleted; they expire on their own.
 
-This is also why invalidation is **per resource**: with keys derived from
-arbitrary queries, a write cannot enumerate every entry it should remove, so
-it removes all of them at once.
+The number is bumped after the database transaction commits, not before.
+A write that is rolled back never reaches that point, so it cannot leave
+wrong data in the cache.
 
-## Write-through warming
+This is also why the cache clears per resource rather than per record:
+keys are built from whatever query was run, so a write cannot know which
+entries contain the record it changed.
 
-By default the first read after a write pays for a database round trip.
-`warm` moves that cost onto the writer:
+## Filling the cache right after a write
+
+Normally the first read after a write goes to the database. A `warm`
+declaration moves that cost to the writer:
 
 ```elixir
 cache do
-  warm :get_by_sku, args: [sku: :sku], actor: {MyApp.SystemActor, :system, []}
+  reads [:get_by_sku]
+  warm :get_by_sku, args: [sku: :sku]
 end
 ```
 
-After every successful create or update, AshCache re-runs the named read
-action with arguments taken from the written record, so the fresh value is
-cached before anyone asks for it. Warming executes the real read action, so
-it shares key derivation and authorization with ordinary reads. It runs
-synchronously in `after_transaction`, so each declaration costs the writer
-one extra read. A warm that fails is logged and swallowed: the generation
-bump already made the stale entry unreachable.
+After each successful create or update, AshCache runs the named read with
+arguments taken from the saved record, so the new value is cached before
+anyone asks for it. The read is a real read action, with the same key and
+the same authorization as any other. It runs inside the write, so each
+`warm` makes the write one read slower. If the read fails, the failure is
+logged and ignored; the version bump has already removed the stale entry.
 
-## Escape hatches
+## Ways around the cache
 
-In increasing depth:
+In order from smallest to largest:
 
-1. **Options in the block.** `ttl`, `store`, `reads`, `cache_empty?` and
-   `adapter_options`. See the [DSL reference](../dsls/DSL-AshCache.Resource.md).
-2. **Bypass one query.**
-   `Ash.Query.set_context(query, %{ash_cache: :bypass})` reads straight from
-   the data layer and stores nothing.
-3. **Runtime helpers.** `AshCache.invalidate(resource)` bumps a resource's
-   generation exactly like a write does. `AshCache.clear_store(store)` wipes a
-   whole store, including other resources' entries.
-4. **Swap the storage adapter.** Implement `AshCache.Store.Adapter` (four
-   callbacks: `get`, `put`, `del`, `clear`) and point AshCache at it with
-   `config :ash_cache, adapter: MyAdapter`, or per process with
-   `Process.put(:ash_cache_adapter, MyAdapter)`. Three adapters ship in the
-   package: `Cachex` (default), `ProcessLocal` (tests) and `Noop` (caching
+1. **Options in the `cache` block.** See the
+   [DSL reference](../dsls/DSL-AshCache.Resource.md).
+2. **Skip the cache for one query.**
+   `Ash.Query.set_context(query, %{ash_cache: :bypass})` reads from the
+   database and saves nothing.
+3. **Clear by hand.** `AshCache.invalidate(resource)` does what a write
+   does. `AshCache.clear_store(store)` empties a whole store.
+4. **Use a different store.** Implement `AshCache.Store.Adapter` (four
+   functions: `get`, `put`, `del`, `clear`) and set
+   `config :ash_cache, adapter: MyAdapter`. Three adapters ship with the
+   package: `Cachex` (the default, in memory, shared by the node),
+   `ProcessLocal` (one cache per process, for tests) and `Noop` (caching
    off).
 
-## Deliberate limits
+## Limits
 
-- **Loaded relationships go stale.** `load` is part of the key, so an entry
-  can carry loaded relationships. Generations are per resource, though: a
-  write to a related resource bumps its own counter, not the parent's, and
-  the parent entry keeps serving the old associations until its TTL expires.
-  Keep `load` off cached reads, or treat the TTL as the staleness window you
-  accept.
-- **Writes cost more.** Every write bumps a counter in the store. One
-  write-heavy test suite roughly doubled in runtime after its resource was
-  cached. Measure before caching a write-heavy resource.
-- **No per-key eviction.** Covered above: a write clears the whole resource.
+- **Related records can go stale.** `load` is part of the key, so an entry
+  can contain related records. Version numbers are per resource, though.
+  A write to the related resource bumps its own number, not the parent's,
+  so the parent entry keeps serving the old related records until it
+  expires. Keep `load` off cached reads, or treat `ttl` as how stale that
+  data may get.
+- **Writes get slower.** Every write bumps a number in the cache. In one
+  write-heavy test suite, caching the resource roughly doubled the suite's
+  runtime. Measure before caching a resource that is written to constantly.
+- **No clearing per record.** See "On a write" above.

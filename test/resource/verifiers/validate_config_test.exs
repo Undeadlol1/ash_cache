@@ -17,10 +17,6 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
     assert ValidateConfig.verify(PartiallyCachedWidget.spark_dsl_config()) == :ok
   end
 
-  test "accepts the default :all" do
-    assert ValidateConfig.verify(CachedWidget.spark_dsl_config()) == :ok
-  end
-
   test "accepts a warm naming a cached read" do
     assert ValidateConfig.verify(WarmedWidget.spark_dsl_config()) == :ok
   end
