@@ -16,7 +16,7 @@ defmodule MyApp.Shop.Product do
     extensions: [AshCache.Resource]
 
   cache do
-    reads [:get_by_sku]
+    read :get_by_sku, ttl: :timer.hours(1)
   end
 end
 ```
@@ -31,8 +31,7 @@ cached entry expires. Set `ttl` to the longest delay you can accept.
 
 ```elixir
 cache do
-  reads [:read]
-  ttl :timer.minutes(2)
+  read :read, ttl: :timer.minutes(2)
 end
 ```
 
@@ -44,7 +43,7 @@ it, the update refreshes the cache before it returns.
 
 ```elixir
 cache do
-  reads [:get_by_key]
+  read :get_by_key, ttl: :timer.hours(1)
   warm :get_by_key, args: [key: :key]
 end
 ```
@@ -68,8 +67,8 @@ store so you can empty it alone.
 
 ```elixir
 cache do
-  reads [:read]
   store :products_cache
+  read :read, ttl: :timer.minutes(10)
 end
 ```
 

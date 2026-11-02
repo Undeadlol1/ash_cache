@@ -5,11 +5,20 @@
 First packaged release. Extracted from the application it was written in,
 where it caches two production resources.
 
-- `AshCache.Resource` extension: `cache do reads [...] end` caches the listed
-  read actions, keyed by action, arguments, query shape, actor and tenant.
+- `AshCache.Resource` extension. Each read to cache is listed on its own
+  with a required lifetime: `read :get_by_sku, ttl: :timer.hours(1)`.
+  `cache_empty?` and `adapter_options` are set per read too. Reads that are
+  not listed are never cached. Keys are built from the action, the whole
+  query, the actor and the tenant.
+- `warm` re-runs a cached read after each create or update, so the new
+  value is cached before anyone asks for it.
 - Generation-based invalidation: a successful write bumps the resource's
   counter in `after_transaction`, so a rolled-back write cannot leave stale
   entries behind and old entries become unreachable in O(1).
+- Telemetry events `[:ash_cache, :read, :hit]`, `[:ash_cache, :read, :miss]`
+  and `[:ash_cache, :invalidate]`.
+- `AshCache.Testing.capture_events/0` sends a test the cache events its own
+  code caused, so cache behaviour can be checked in `async: true` tests.
 - Store adapters: `Cachex` (default), `ProcessLocal` (per-process isolation
   for async tests) and `Noop`, behind `AshCache.Store.Adapter`.
 - `AshCache.Supervisor` starts one store per declared cache with no manual

@@ -5,7 +5,7 @@ and why it has the limits it has.
 
 ## On a read
 
-Every read listed in `reads` gets a step that runs before the database is
+Every read listed with `read` in the `cache` block gets a step that runs before the database is
 asked anything. The step builds a key from the query and looks it up in
 the cache.
 
@@ -16,7 +16,7 @@ the cache.
 
 Empty results are not saved by default. Otherwise a record that does not
 exist yet would keep being reported as missing until the entry expired.
-Set `cache_empty? true` to save them anyway.
+Set `cache_empty?: true` on the `read` to save them anyway.
 
 ## What is in a key
 
@@ -63,7 +63,7 @@ declaration moves that cost to the writer:
 
 ```elixir
 cache do
-  reads [:get_by_sku]
+  read :get_by_sku, ttl: :timer.hours(1)
   warm :get_by_sku, args: [sku: :sku]
 end
 ```
@@ -75,15 +75,24 @@ the same authorization as any other. It runs inside the write, so each
 `warm` makes the write one read slower. If the read fails, the failure is
 logged and ignored; the version bump has already removed the stale entry.
 
+## Seeing what the cache does
+
+Each cached read sends a `:telemetry` event: `[:ash_cache, :read, :hit]`
+when the result came from the cache, `[:ash_cache, :read, :miss]` when it
+went to the database. Each clear sends `[:ash_cache, :invalidate]`. Attach
+a handler to count hit rates in production. The events and their metadata
+are listed in `AshCache`; for tests, use `AshCache.Testing` (see
+[How to test with AshCache](testing.md)).
+
 ## Ways around the cache
 
 In order from smallest to largest:
 
 1. **Options in the `cache` block.** See the
    [DSL reference](../dsls/DSL-AshCache.Resource.md).
-2. **Skip the cache for one query.**
-   `Ash.Query.set_context(query, %{ash_cache: :bypass})` reads from the
-   database and saves nothing.
+2. **Skip the cache for one query.** Pass `context: %{ash_cache: :bypass}`
+   when you build or run the read. It reads from the database and saves
+   nothing.
 3. **Clear by hand.** `AshCache.invalidate(resource)` does what a write
    does. `AshCache.clear_store(store)` empties a whole store.
 4. **Use a different store.** See the [Storage](storage.md) guide.

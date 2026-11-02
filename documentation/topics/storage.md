@@ -39,8 +39,8 @@ a resource a store of its own:
 
 ```elixir
 cache do
-  reads [:read]
   store :products_cache
+  read :read, ttl: :timer.minutes(10)
 end
 ```
 
@@ -77,13 +77,12 @@ config :ash_cache, adapter: MyApp.MyCacheAdapter
 
 ### Pass options to your adapter
 
-Anything a resource sets in `adapter_options` is passed to your `put/4`
+Anything a `read` sets in `adapter_options` is passed to your `put/4`
 along with `:ttl`:
 
 ```elixir
 cache do
-  reads [:read]
-  adapter_options prefix: "products"
+  read :read, ttl: :timer.minutes(10), adapter_options: [prefix: "products"]
 end
 ```
 
