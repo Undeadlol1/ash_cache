@@ -16,47 +16,47 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
     reads = for %AshCache.CachedRead{name: name} <- entities, do: name
     warms = for %AshCache.Warm{read: read} <- entities, do: read
 
-    with :ok <- verify_present(dsl_state, reads),
+    with :ok <- verify_any_read(dsl_state, reads),
          :ok <- verify_read_actions(dsl_state, reads),
-         :ok <- verify_unique(dsl_state, reads) do
+         :ok <- verify_reads_unique(dsl_state, reads) do
       verify_warms(dsl_state, reads, warms)
     end
   end
 
-  defp verify_present(dsl_state, []),
-    do: error(dsl_state, [:cache], "The `cache` block needs at least one `read` to cache.")
+  defp verify_any_read(dsl_state, []),
+    do: dsl_error(dsl_state, [:cache], "The `cache` block needs at least one `read` to cache.")
 
-  defp verify_present(_dsl_state, _reads), do: :ok
+  defp verify_any_read(_dsl_state, _reads), do: :ok
 
   defp verify_read_actions(dsl_state, reads) do
-    known =
+    read_actions =
       dsl_state
       |> Verifier.get_entities([:actions])
       |> Enum.filter(&(&1.type == :read))
       |> MapSet.new(& &1.name)
 
-    case Enum.reject(reads, &MapSet.member?(known, &1)) do
+    case Enum.reject(reads, &MapSet.member?(read_actions, &1)) do
       [] ->
         :ok
 
-      unknown ->
-        error(dsl_state, [:cache, :read], """
-        `read` names actions that are not read actions on this resource: #{inspect(unknown)}.
-        Known read actions: #{inspect(Enum.sort(known))}.
+      not_read_actions ->
+        dsl_error(dsl_state, [:cache, :read], """
+        `read` names actions that are not read actions on this resource: #{inspect(not_read_actions)}.
+        Known read actions: #{inspect(Enum.sort(read_actions))}.
         """)
     end
   end
 
-  defp verify_unique(dsl_state, reads) do
+  defp verify_reads_unique(dsl_state, reads) do
     case Enum.uniq(reads -- Enum.uniq(reads)) do
       [] ->
         :ok
 
-      dupes ->
-        error(
+      duplicates ->
+        dsl_error(
           dsl_state,
           [:cache, :read],
-          "`read` is declared more than once for: #{inspect(dupes)}."
+          "`read` is declared more than once for: #{inspect(duplicates)}."
         )
     end
   end
@@ -67,14 +67,14 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
         :ok
 
       [uncached | _rest] ->
-        error(dsl_state, [:cache, :warm], """
+        dsl_error(dsl_state, [:cache, :warm], """
         `warm #{inspect(uncached)}` names an action that is not a cached read on this resource.
         Cached read actions: #{inspect(Enum.sort(reads))}.
         """)
     end
   end
 
-  defp error(dsl_state, path, message) do
+  defp dsl_error(dsl_state, path, message) do
     {:error,
      DslError.exception(
        module: Verifier.get_persisted(dsl_state, :module),

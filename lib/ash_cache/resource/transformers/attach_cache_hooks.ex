@@ -22,9 +22,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
   @doc false
   def transform(dsl_state) do
     store = Transformer.get_option(dsl_state, [:cache], :store)
-    section_ttl = Transformer.get_option(dsl_state, [:cache], :ttl)
+    block_ttl = Transformer.get_option(dsl_state, [:cache], :ttl)
     entities = Transformer.get_entities(dsl_state, [:cache])
-    warm_specs = Enum.filter(entities, &match?(%AshCache.Warm{}, &1))
+    warms = Enum.filter(entities, &match?(%AshCache.Warm{}, &1))
 
     cached_reads =
       for %AshCache.CachedRead{} = read <- entities, into: %{}, do: {read.name, read}
@@ -36,17 +36,17 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
         action.type == :read and is_map_key(cached_reads, action.name) ->
           read = cached_reads[action.name]
 
-          read_opts = [
+          preparation_opts = [
             store: store,
-            ttl: AshCache.CachedRead.effective_ttl(read, section_ttl),
+            ttl: AshCache.CachedRead.effective_ttl(read, block_ttl),
             cache_empty?: read.cache_empty?,
             adapter_options: read.adapter_options
           ]
 
-          attach_preparation(dsl_state, action, read_opts)
+          attach_preparation(dsl_state, action, preparation_opts)
 
         action.type in @write_types ->
-          attach_change(dsl_state, action, store, warm_specs)
+          attach_change(dsl_state, action, store, warms)
 
         true ->
           dsl_state
@@ -55,10 +55,10 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     |> then(&{:ok, &1})
   end
 
-  defp attach_preparation(dsl_state, action, read_opts) do
+  defp attach_preparation(dsl_state, action, preparation_opts) do
     preparation =
       Transformer.build_entity!(Dsl, [:actions, :read], :prepare,
-        preparation: {AshCache.Preparations.ReadThrough, read_opts}
+        preparation: {AshCache.Preparations.ReadThrough, preparation_opts}
       )
 
     dsl_state
@@ -75,11 +75,11 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   defp suppress_primary_read_warning(dsl_state, _action), do: dsl_state
 
-  defp attach_change(dsl_state, action, store, warm_specs) do
+  defp attach_change(dsl_state, action, store, warms) do
     change_opts =
-      case warm_specs do
+      case warms do
         [] -> [store: store]
-        warm_specs -> [store: store, warm: warm_specs]
+        warms -> [store: store, warm: warms]
       end
 
     change =

@@ -6,9 +6,9 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
 
   @behaviour AshCache.Store.Adapter
 
-  @keys_key_prefix :ash_cache_keys
-  @pinned_keys_key_prefix :ash_cache_pinned_keys
-  @entry_key_prefix :ash_cache_entry
+  @tracked_keys_prefix :ash_cache_keys
+  @pinned_keys_prefix :ash_cache_pinned_keys
+  @entry_prefix :ash_cache_entry
 
   # Generation-based invalidation strands old entries: nothing reads them
   # again, so their TTL is never checked and they accumulate for the life of
@@ -57,7 +57,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   def put(store, key, value, opts) do
     ttl = Keyword.get(opts, :ttl, :infinity)
 
-    expires_at =
+    expires_at_ms =
       case ttl do
         :infinity -> :infinity
         ttl_ms when is_integer(ttl_ms) and ttl_ms <= 0 -> now_ms() - 1
@@ -65,7 +65,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
         _other -> :infinity
       end
 
-    Process.put(entry_key(store, key), {value, expires_at})
+    Process.put(entry_key(store, key), {value, expires_at_ms})
     track_key(store, key, Keyword.get(opts, :pin, false))
     :ok
   end
@@ -78,7 +78,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
 
   @impl true
   def clear(store) do
-    drop_bounded_entries(store)
+    drop_tracked_entries(store)
     drop_entries(store, pinned_keys(store), pinned_keys_key(store))
   end
 
@@ -87,20 +87,20 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   end
 
   defp track_key(store, key, false) do
-    current = tracked_keys(store)
+    tracked = tracked_keys(store)
 
-    if MapSet.size(current) >= @max_entries_per_store and not MapSet.member?(current, key) do
+    if MapSet.size(tracked) >= @max_entries_per_store and not MapSet.member?(tracked, key) do
       entry = Process.get(entry_key(store, key))
-      drop_bounded_entries(store)
+      drop_tracked_entries(store)
       Process.put(entry_key(store, key), entry)
-      Process.put(keys_key(store), MapSet.new([key]))
+      Process.put(tracked_keys_key(store), MapSet.new([key]))
     else
-      Process.put(keys_key(store), MapSet.put(current, key))
+      Process.put(tracked_keys_key(store), MapSet.put(tracked, key))
     end
   end
 
-  defp drop_bounded_entries(store) do
-    drop_entries(store, tracked_keys(store), keys_key(store))
+  defp drop_tracked_entries(store) do
+    drop_entries(store, tracked_keys(store), tracked_keys_key(store))
   end
 
   defp drop_entries(store, keys, tracking_key) do
@@ -113,24 +113,24 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
     Process.delete(entry_key(store, key))
     Process.put(pinned_keys_key(store), MapSet.delete(pinned_keys(store), key))
 
-    updated = MapSet.delete(tracked_keys(store), key)
+    remaining = MapSet.delete(tracked_keys(store), key)
 
-    if MapSet.size(updated) == 0 do
-      Process.delete(keys_key(store))
+    if MapSet.size(remaining) == 0 do
+      Process.delete(tracked_keys_key(store))
     else
-      Process.put(keys_key(store), updated)
+      Process.put(tracked_keys_key(store), remaining)
     end
 
     :ok
   end
 
-  defp tracked_keys(store), do: Process.get(keys_key(store), MapSet.new())
+  defp tracked_keys(store), do: Process.get(tracked_keys_key(store), MapSet.new())
 
   defp pinned_keys(store), do: Process.get(pinned_keys_key(store), MapSet.new())
 
-  defp keys_key(store), do: {@keys_key_prefix, store}
-  defp pinned_keys_key(store), do: {@pinned_keys_key_prefix, store}
-  defp entry_key(store, key), do: {@entry_key_prefix, store, key}
+  defp tracked_keys_key(store), do: {@tracked_keys_prefix, store}
+  defp pinned_keys_key(store), do: {@pinned_keys_prefix, store}
+  defp entry_key(store, key), do: {@entry_prefix, store, key}
 
   defp now_ms, do: System.monotonic_time(:millisecond)
 end

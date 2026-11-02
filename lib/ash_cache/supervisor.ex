@@ -60,7 +60,7 @@ defmodule AshCache.Supervisor do
     case Cachex.start_link(store, []) do
       {:ok, pid} -> {:ok, pid}
       {:error, {:already_started, _pid}} -> :ignore
-      other -> other
+      error -> error
     end
   end
 end

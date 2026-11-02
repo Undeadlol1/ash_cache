@@ -18,8 +18,8 @@ defmodule AshCache.CachedRead do
   The ttl a cached read actually uses: its own, else the block's.
   """
   @spec effective_ttl(t(), pos_integer() | :infinity) :: pos_integer() | :infinity
-  def effective_ttl(%__MODULE__{ttl: nil}, section_ttl), do: section_ttl
-  def effective_ttl(%__MODULE__{ttl: ttl}, _section_ttl), do: ttl
+  def effective_ttl(%__MODULE__{ttl: nil}, block_ttl), do: block_ttl
+  def effective_ttl(%__MODULE__{ttl: ttl}, _block_ttl), do: ttl
 
   @doc false
   def schema do

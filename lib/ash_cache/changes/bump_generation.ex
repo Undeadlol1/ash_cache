@@ -19,13 +19,13 @@ defmodule AshCache.Changes.BumpGeneration do
   @impl true
   def change(changeset, opts, _context) do
     store = Keyword.fetch!(opts, :store)
-    warm_specs = Keyword.get(opts, :warm, [])
+    warms = Keyword.get(opts, :warm, [])
 
     Ash.Changeset.after_transaction(changeset, fn changeset, result ->
       case result do
         {:ok, record} ->
           Generation.bump(store, changeset.resource)
-          warm(changeset, record, warm_specs)
+          warm_reads(changeset, record, warms)
 
         _error ->
           :noop
@@ -35,12 +35,12 @@ defmodule AshCache.Changes.BumpGeneration do
     end)
   end
 
-  defp warm(%{action: %{type: :destroy}}, _record, _warm_specs), do: :ok
+  defp warm_reads(%{action: %{type: :destroy}}, _record, _warms), do: :ok
 
-  defp warm(changeset, record, warm_specs) do
-    Enum.each(warm_specs, fn spec ->
-      case warm_one(changeset.resource, changeset.tenant, record, spec) do
-        {:error, reason} -> log_warm_failure(changeset.resource, spec, reason)
+  defp warm_reads(changeset, record, warms) do
+    Enum.each(warms, fn warm ->
+      case run_warm(changeset.resource, changeset.tenant, record, warm) do
+        {:error, reason} -> log_warm_failure(changeset.resource, warm, reason)
         _warmed -> :ok
       end
     end)
@@ -52,8 +52,8 @@ defmodule AshCache.Changes.BumpGeneration do
     Logger.warning("AshCache could not warm #{inspect(resource)}.#{read}: #{inspect(reason)}")
   end
 
-  defp warm_one(resource, tenant, record, %Warm{read: read, args: args, actor: actor_mfa}) do
-    actor = resolve_actor(actor_mfa)
+  defp run_warm(resource, tenant, record, %Warm{read: read, args: args, actor: actor_mfa}) do
+    actor = warm_actor(actor_mfa)
 
     arguments =
       Map.new(args, fn {argument, attribute} -> {argument, Map.get(record, attribute)} end)
@@ -67,8 +67,8 @@ defmodule AshCache.Changes.BumpGeneration do
     kind, reason -> {:error, {kind, reason}}
   end
 
-  defp resolve_actor(nil), do: nil
-  defp resolve_actor({module, function, args}), do: apply(module, function, args)
+  defp warm_actor(nil), do: nil
+  defp warm_actor({module, function, args}), do: apply(module, function, args)
 
   # The change only registers an after_transaction hook, so it is safe under
   # atomic updates (Ash 3 defaults update actions to require_atomic? true).

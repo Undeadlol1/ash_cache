@@ -43,14 +43,9 @@ defmodule AshCache.Generation do
 
   @spec bump(atom(), module()) :: :ok | {:error, term()}
   def bump(store, resource) do
-    result =
-      Store.put(store, counter_key(resource), fresh_token(), ttl: :infinity, pin: true)
-
-    if result == :ok do
+    with :ok <- Store.put(store, counter_key(resource), fresh_token(), ttl: :infinity, pin: true) do
       :telemetry.execute([:ash_cache, :invalidate], %{}, %{resource: resource, store: store})
     end
-
-    result
   end
 
   defp fresh_token, do: {node(), :erlang.unique_integer([:monotonic, :positive])}
