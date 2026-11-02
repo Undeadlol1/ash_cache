@@ -6,7 +6,8 @@ when a requirement demands them.
 
 ## Setup
 
-- Add `{:ash_cache, "~> 0.1"}` to deps.
+- Add `{:ash_cache, "~> 0.1"}` and `{:cachex, "~> 3.6"}` to deps. Cachex is
+  the default store and is optional: skip it only if you set another adapter.
 - Add `{AshCache.Supervisor, otp_app: :my_app}` to the application's
   supervision tree exactly once, after the repo. It starts one Cachex store
   per distinct `store` name declared across all domains in

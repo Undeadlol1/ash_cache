@@ -21,6 +21,9 @@ where it caches two production resources.
   and `[:ash_cache, :invalidate]`.
 - `AshCache.Testing.capture_events/0` sends a test the cache events its own
   code caused, so cache behaviour can be checked in `async: true` tests.
+- Cachex is an optional dependency. Add it to your deps to use the default
+  store. Without it, AshCache fails at startup with a message saying so,
+  unless you set another adapter.
 - Store adapters: `Cachex` (default), `ProcessLocal` (per-process isolation
   for async tests) and `Noop`, behind `AshCache.Store.Adapter`.
 - `AshCache.Supervisor` starts one store per declared cache with no manual

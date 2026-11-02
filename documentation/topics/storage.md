@@ -8,7 +8,7 @@ to write an adapter for other storage.
 
 | Adapter | What it does | Use it for |
 |---|---|---|
-| `AshCache.Store.Adapters.Cachex` | Keeps entries in memory with [Cachex](https://hexdocs.pm/cachex). This is the default. | Production |
+| `AshCache.Store.Adapters.Cachex` | Keeps entries in memory with [Cachex](https://hexdocs.pm/cachex). This is the default. Add `{:cachex, "~> 3.6"}` to your deps to use it. | Production |
 | `AshCache.Store.Adapters.ProcessLocal` | Gives each process its own private cache. | Tests |
 | `AshCache.Store.Adapters.Noop` | Saves nothing. Every read goes to the database. | Turning caching off |
 
