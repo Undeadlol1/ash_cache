@@ -340,6 +340,48 @@ defmodule AshCache.Test.LabelledWidget do
   end
 end
 
+defmodule AshCache.Test.ExchangeRate do
+  @moduledoc """
+  Generic-action case: a call to an outside service, faked by a function that
+  reports each run to the calling process. `"FAIL"` returns an error, `"NONE"`
+  an empty list and `"NIL"` nil. Calls need an actor.
+  """
+
+  use Ash.Resource,
+    domain: AshCache.Test.Domain,
+    extensions: [AshCache.Resource],
+    authorizers: [Ash.Policy.Authorizer]
+
+  cache do
+    action(:rates, ttl: to_timeout(hour: 1))
+  end
+
+  policies do
+    policy always() do
+      authorize_if(actor_present())
+    end
+  end
+
+  actions do
+    action :rates, {:array, :float} do
+      allow_nil?(true)
+      argument(:currency, :string, allow_nil?: false)
+
+      run(fn input, _context ->
+        currency = input.arguments.currency
+        send(self(), {:rates_ran, currency})
+
+        case currency do
+          "FAIL" -> {:error, "service down"}
+          "NONE" -> {:ok, []}
+          "NIL" -> {:ok, nil}
+          _other -> {:ok, [1.5]}
+        end
+      end)
+    end
+  end
+end
+
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
@@ -362,5 +404,6 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.WarmedTenantWidget)
     resource(AshCache.Test.FilteredWidget)
     resource(AshCache.Test.LabelledWidget)
+    resource(AshCache.Test.ExchangeRate)
   end
 end

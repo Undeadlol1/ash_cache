@@ -12,7 +12,7 @@ defmodule AshCache.ResourceTest do
     assert section.name == :cache
     assert Keyword.keys(section.schema) == [:store]
     assert section.schema[:store][:default] == :ash_cache
-    assert Enum.map(section.entities, & &1.name) == [:read, :warm]
+    assert Enum.map(section.entities, & &1.name) == [:read, :action, :warm]
   end
 
   test "the read entity requires a ttl and defaults the rest" do

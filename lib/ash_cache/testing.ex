@@ -3,7 +3,7 @@ defmodule AshCache.Testing do
   Lets a test see the cache events its own code caused, even when many
   tests run at the same time (`async: true`).
 
-  AshCache announces cache hits, misses and invalidations with `:telemetry`
+  AshCache announces cache hits, misses (of reads and generic actions) and invalidations with `:telemetry`
   (see `AshCache`). Telemetry handlers are global, so a plain handler would
   also catch events from other tests running in parallel. Call
   `capture_events/0` instead:
@@ -31,6 +31,8 @@ defmodule AshCache.Testing do
   @events [
     [:ash_cache, :read, :hit],
     [:ash_cache, :read, :miss],
+    [:ash_cache, :action, :hit],
+    [:ash_cache, :action, :miss],
     [:ash_cache, :invalidate]
   ]
 
@@ -60,5 +62,6 @@ defmodule AshCache.Testing do
   end
 
   defp kind([:ash_cache, :read, kind]), do: kind
+  defp kind([:ash_cache, :action, kind]), do: kind
   defp kind([:ash_cache, :invalidate]), do: :invalidate
 end

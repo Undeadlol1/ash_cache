@@ -4,7 +4,7 @@ defmodule AshCache.Info do
 
   `Spark.InfoGenerator` supplies `cache_store/1` (returning `{:ok, value}` or
   `:error`), `cache_store!/1`, and `cache/1`, which lists the section's
-  `AshCache.CachedRead` and `AshCache.Warm` entities.
+  `AshCache.CachedRead`, `AshCache.CachedAction` and `AshCache.Warm` entities.
   """
 
   use Spark.InfoGenerator, extension: AshCache.Resource, sections: [:cache]
