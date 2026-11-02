@@ -28,26 +28,30 @@ when a requirement demands them.
   end
   ```
 
-- `ttl` (milliseconds) is required on every `read`; there is no
-  block-level `ttl` and no way to cache all reads at once. Unlisted reads are
-  never cached. Every name must be a read action on the resource, listed once, or
+- `ttl` (milliseconds or `:infinity`) is optional on each `read`. Without it
+  the read uses the block's `ttl`, which defaults to 5 minutes
+  (`cache do ttl :timer.hours(1) ... end` changes it for the resource).
+  `:infinity` is never the default: old entries stay in memory until their
+  `ttl` runs out, so only use it for data that is written rarely. There is
+  no way to cache all reads at once. Unlisted reads are never cached. Every name must be a read action on the resource, listed once, or
   compilation fails. A `cache` block with no `read` or `action` fails too.
 - Options on `read`: `cache_empty?: true` caches `[]` and `nil` results (off
-  by default); `adapter_options: [...]` is passed verbatim to the adapter's
+  by default); `store_options: [...]` is passed verbatim to the adapter's
   `put/4`.
 - `action :name, ttl: ...` caches a generic action the same way, keyed by
   its arguments, actor and tenant; on a hit its `run` is not called. It
-  takes the same options as `read`. Errors and `nil` are never cached. The
-  action must have a return type and its `run` must not be a Reactor, or
-  compilation fails. Policies are still checked on every call.
+  takes the same options as `read`, and the same `ttl` default. Errors and
+  `nil` are never cached. The action must have a return type and its `run`
+  must not be a Reactor, or compilation fails. Policies are still checked
+  on every call.
 - Options on the block: `store :name` gives the resource its own Cachex store
-  (default `:ash_cache`).
-- `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`
+  (default `:ash_cache`); `ttl` sets the lifetime for reads without their own.
+- `refresh :read_action, arguments: [arg: :attribute], actor: {Mod, :fun, []}`
   re-runs a cached read after each create/update with arguments taken from
   the written record. The entry is cached for that actor only (no actor by
-  default) and for the written record's tenant, so `warm` only helps reads
+  default) and for the written record's tenant, so `refresh` only helps reads
   normally called the same way. Do not use it for per-user reads. Each
-  `warm` costs the writer one extra read.
+  `refresh` costs the writer one extra read.
 - Every successful create/update/destroy clears all cached reads and
   generic actions of the resource, after commit.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
@@ -57,9 +61,8 @@ when a requirement demands them.
 
 ## Rules
 
-- Pass the actor and tenant when building the query (code interfaces,
-  `Ash.read(Resource, actor: ...)`, or `Ash.Query.for_read(..., actor: ...)`).
-  The cache key is built per actor and tenant.
+- The cache key is built per actor and tenant, however they are passed
+  (code interface, `Ash.Query.for_read/4` or `Ash.read/2`).
 - Do not cache reads that `load` related data unless a short `ttl` is
   acceptable. A write to the related resource does not clear the parent's
   entry.
@@ -82,7 +85,7 @@ when a requirement demands them.
 - To disable caching in one process (tests, scripts):
   `Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Noop)`.
 - A custom store implements `AshCache.Store.Adapter` (`get/2`, `put/4`,
-  `del/2`, `clear/1`; a miss is `{:ok, nil}`) and is selected with
+  `delete/2`, `clear/1`; a miss is `{:ok, nil}`) and is selected with
   `config :ash_cache, adapter: MyAdapter`.
 
 ## Telemetry and tests

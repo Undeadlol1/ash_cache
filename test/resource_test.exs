@@ -1,36 +1,50 @@
 defmodule AshCache.ResourceTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureIO
+
   test "the extension wires its transformer and verifier" do
     assert AshCache.Resource.Transformers.AttachCacheHooks in AshCache.Resource.transformers()
-    assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
+    assert AshCache.Resource.Verifiers.ValidateCacheBlock in AshCache.Resource.verifiers()
   end
 
-  test "the section only carries the store" do
+  test "the cache block carries the store and the default ttl" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
-    assert Keyword.keys(section.schema) == [:store]
+    assert Keyword.keys(section.schema) == [:store, :ttl]
+    assert section.schema[:ttl][:default] == 300_000
     assert section.schema[:store][:default] == :ash_cache
-    assert Enum.map(section.entities, & &1.name) == [:read, :action, :warm]
+    assert Enum.map(section.entities, & &1.name) == [:read, :action, :refresh]
   end
 
-  test "the read entity requires a ttl and defaults the rest" do
+  test "a read entry has an optional ttl and defaults the rest" do
     [section] = AshCache.Resource.sections()
     read = Enum.find(section.entities, &(&1.name == :read))
 
     assert read.target == AshCache.CachedRead
     assert read.args == [:name]
-    assert read.schema[:ttl][:required] == true
+    refute read.schema[:ttl][:required]
     refute Keyword.has_key?(read.schema[:ttl], :default)
     assert read.schema[:cache_empty?][:default] == false
-    assert read.schema[:adapter_options][:default] == []
+    assert read.schema[:store_options][:default] == []
   end
 
-  test "a read without a ttl does not compile" do
-    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
-      compile_cached_resource("read :read")
+  test "a read without a ttl compiles" do
+    compile_cached_resource("read :read")
+  end
+
+  test "a zero or negative block ttl does not compile" do
+    for ttl <- [0, -5] do
+      assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
+        compile_cached_resource("ttl #{ttl}\n        read :read")
+      end
     end
+  end
+
+  test "an :infinity ttl compiles on the block and on a read" do
+    compile_cached_resource("ttl :infinity\n        read :read")
+    compile_cached_resource("read :read, ttl: :infinity")
   end
 
   test "a zero ttl does not compile" do
@@ -45,28 +59,22 @@ defmodule AshCache.ResourceTest do
     end
   end
 
-  test "an :infinity ttl does not compile" do
-    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
-      compile_cached_resource("read :read, ttl: :infinity")
-    end
-  end
-
-  test "the old section-level reads option does not compile" do
+  test "the old block-level reads option does not compile" do
     assert_raise CompileError, fn ->
       compile_cached_resource("reads [:read]")
-    end
-  end
-
-  test "the old section-level ttl option does not compile" do
-    assert_raise CompileError, fn ->
-      compile_cached_resource("read :read, ttl: 1000\n        ttl 1000")
     end
   end
 
   defp compile_cached_resource(cache_body) do
     name = "AshCache.Test.Compiled#{System.unique_integer([:positive])}"
 
-    Code.compile_string("""
+    # Compiling at test time prints the expected compile errors and a
+    # protocol-consolidation warning to stderr; keep them out of the run.
+    capture_io(:stderr, fn -> Code.compile_string(source(name, cache_body)) end)
+  end
+
+  defp source(name, cache_body) do
+    """
     defmodule #{name} do
       use Ash.Resource,
         domain: nil,
@@ -86,6 +94,6 @@ defmodule AshCache.ResourceTest do
         defaults [:read]
       end
     end
-    """)
+    """
   end
 end

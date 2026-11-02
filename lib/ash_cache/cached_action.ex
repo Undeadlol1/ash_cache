@@ -4,13 +4,13 @@ defmodule AshCache.CachedAction do
   `AshCache.CachedRead`.
   """
 
-  defstruct [:name, :ttl, cache_empty?: false, adapter_options: [], __spark_metadata__: nil]
+  defstruct [:name, :ttl, cache_empty?: false, store_options: [], __spark_metadata__: nil]
 
   @type t :: %__MODULE__{
           name: atom(),
-          ttl: pos_integer(),
+          ttl: pos_integer() | :infinity | nil,
           cache_empty?: boolean(),
-          adapter_options: keyword(),
+          store_options: keyword(),
           __spark_metadata__: Spark.Dsl.Entity.spark_meta()
         }
 

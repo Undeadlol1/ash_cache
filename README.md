@@ -11,8 +11,8 @@ changes.
 
 ## What you get
 
-- **You pick what is cached.** List the reads and generic actions to cache
-  in a `cache` block on the resource.
+- **You pick what is cached.** List the reads to cache in a `cache` block on
+  the resource.
 - **No manual clearing.** When a record is created, updated or deleted, the
   cache for that resource is cleared.
 - **No data leaks between users.** Each user and each tenant has their own
@@ -42,8 +42,8 @@ children = [
 
 ## Usage
 
-Add the extension to a resource and list each read to cache, with how long
-its results are kept (`ttl`, in milliseconds):
+Add the extension to a resource and list each read to cache. `ttl` is how
+long its results are kept, in milliseconds:
 
 ```elixir
 defmodule MyApp.Shop.Product do
@@ -62,12 +62,47 @@ end
 database as before. The cache clears when a product is created, updated or
 deleted.
 
+`ttl` is optional. A read without one keeps its results for 5 minutes. To
+change that for every read of the resource, set `ttl` on the block:
+
+```elixir
+cache do
+  ttl :timer.hours(1)
+
+  read :get_by_sku
+  read :featured, ttl: :timer.minutes(1)
+end
+```
+
+Here `get_by_sku` keeps results for an hour and `featured` for a minute.
+
+`ttl: :infinity` keeps results until the resource changes. Use it only
+for data that is rarely written: a write doesn't delete old results from
+memory, it only stops them being used, and they stay in memory until
+their `ttl` runs out.
+
 Generic actions, such as a call to another company's API, are cached the
-same way with `action :get_rate, ttl: :timer.minutes(10)`. See "Data from
-another service" in [Examples](documentation/topics/examples.md).
+same way with `action :get_rate, ttl: :timer.minutes(10)`. On a cache hit
+the action's `run` function is not called. See "Data from another service"
+in [Examples](documentation/topics/examples.md).
 
 The [Examples](documentation/topics/examples.md) page shows the `cache`
 block for common app features.
+
+## When cached results are thrown away
+
+A cached result is thrown away in three cases:
+
+1. **The resource is changed through Ash.** Creating, updating or deleting
+   any product throws away every cached product read, right away.
+2. **The `ttl` runs out**, even if nothing changed.
+3. **You call `AshCache.invalidate(MyApp.Shop.Product)`.** Use this when the
+   data changed without Ash, for example after an import.
+
+Changes to other resources don't count. If a cached post read includes the
+post's comments, adding a comment doesn't throw it away. The comments
+update when the `ttl` runs out, or sooner if you call
+`AshCache.invalidate(MyApp.Blog.Post)` after creating a comment.
 
 ## Learn more
 
@@ -91,6 +126,9 @@ block for common app features.
   `load` off cached reads, or choose a short `ttl`.
 - **Each node has its own cache.** On several nodes, a write clears the
   cache only on the node that made it. See [Storage](documentation/topics/storage.md).
+- **No protection when a popular entry runs out.** Every request that
+  arrives before the read is cached again goes to the database. Choose a
+  `ttl` your database can handle that burst for.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

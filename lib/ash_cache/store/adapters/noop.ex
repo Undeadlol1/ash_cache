@@ -13,7 +13,7 @@ defmodule AshCache.Store.Adapters.Noop do
   def put(_store, _key, _value, _opts), do: :ok
 
   @impl true
-  def del(_store, _key), do: :ok
+  def delete(_store, _key), do: :ok
 
   @impl true
   def clear(_store), do: :ok

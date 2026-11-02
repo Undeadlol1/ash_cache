@@ -14,14 +14,16 @@ defmodule AshCache.Resource do
       end
 
   Each `read` is cached, keyed by the action, the whole query, the actor and
-  the tenant (see `AshCache.Key`). `ttl` is required; empty results are not
+  the tenant (see `AshCache.Key`). A `read` lives as long as its own `ttl`,
+  else the block's `ttl` (5 minutes by default); empty results are not
   cached unless you ask. Entries go in the shared `:ash_cache` store unless you
   set `store`. Every create, update or destroy clears the resource's cached
-  reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
+  reads after the transaction commits (see `AshCache.Changes.InvalidateCache`).
 
   Each `action` caches a generic action, keyed by the action, its arguments,
-  the actor and the tenant. On a hit its `run` is not called (see
-  `AshCache.Actions.RunThrough`). Writes clear these entries too.
+  the actor and the tenant, with the same `ttl` rules. On a hit its `run` is
+  not called (see `AshCache.Actions.RunThrough`). Writes clear these entries
+  too.
 
   Actions without a `read` or `action` entry are never cached.
   """
@@ -40,30 +42,39 @@ defmodule AshCache.Resource do
     args: [:name],
     schema: AshCache.CachedAction.schema()
   }
-  @warm %Spark.Dsl.Entity{
-    name: :warm,
+  @refresh %Spark.Dsl.Entity{
+    name: :refresh,
     describe: """
     Re-run a read after every successful create/update so the fresh value is
-    cached immediately (write-through), e.g. `warm :get_by_key, args: [key: :key]`.
+    cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: :key]`.
     """,
-    target: AshCache.Warm,
+    target: AshCache.Refresh,
     args: [:read],
-    schema: AshCache.Warm.schema()
+    schema: AshCache.Refresh.schema()
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Which reads and generic actions to cache, and where.",
-    entities: [@read, @action, @warm],
+    describe: "Which reads and generic actions to cache, where, and for how long.",
+    entities: [@read, @action, @refresh],
     schema: [
       store: [
         type: :atom,
         default: :ash_cache,
         doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
+      ],
+      ttl: [
+        type: {:or, [:pos_integer, {:in, [:infinity]}]},
+        default: :timer.minutes(5),
+        doc: """
+        Milliseconds a cached entry lives before it expires, for every `read`
+        and `action` that does not set its own `ttl`. `:infinity` never expires; it is never
+        the default.
+        """
       ]
     ]
   }
   use Spark.Dsl.Extension,
     sections: [@cache],
     transformers: [AshCache.Resource.Transformers.AttachCacheHooks],
-    verifiers: [AshCache.Resource.Verifiers.ValidateConfig]
+    verifiers: [AshCache.Resource.Verifiers.ValidateCacheBlock]
 end

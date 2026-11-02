@@ -1,7 +1,7 @@
-defmodule AshCache.Resource.Verifiers.ValidateConfig do
+defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
   @moduledoc """
   Rejects a `cache` block that caches nothing, names an action of the wrong
-  type, declares the same action twice, or warms a read it does not cache.
+  type, declares the same action twice, or refreshes a read it does not cache.
   A typo in any of these would silently cache nothing.
 
   Also rejects a cached generic action that returns nothing (there is nothing
@@ -19,27 +19,27 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
     entities = Verifier.get_entities(dsl_state, [:cache])
     reads = for %AshCache.CachedRead{name: name} <- entities, do: name
     actions = for %AshCache.CachedAction{name: name} <- entities, do: name
-    warms = for %AshCache.Warm{read: read} <- entities, do: read
+    refreshes = for %AshCache.Refresh{read: read} <- entities, do: read
 
-    with :ok <- verify_present(dsl_state, reads ++ actions),
+    with :ok <- verify_anything_cached(dsl_state, reads ++ actions),
          :ok <- verify_action_type(dsl_state, :read, reads, "read actions"),
          :ok <- verify_action_type(dsl_state, :action, actions, "generic actions"),
          :ok <- verify_unique(dsl_state, :read, reads),
          :ok <- verify_unique(dsl_state, :action, actions),
          :ok <- verify_generic_actions(dsl_state, actions) do
-      verify_warms(dsl_state, reads, warms)
+      verify_refreshes(dsl_state, reads, refreshes)
     end
   end
 
-  defp verify_present(dsl_state, []),
+  defp verify_anything_cached(dsl_state, []),
     do:
-      error(
+      dsl_error(
         dsl_state,
         [:cache],
         "The `cache` block needs at least one `read` or `action` to cache."
       )
 
-  defp verify_present(_dsl_state, _names), do: :ok
+  defp verify_anything_cached(_dsl_state, _names), do: :ok
 
   defp verify_action_type(dsl_state, type, names, label) do
     known =
@@ -52,9 +52,9 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
       [] ->
         :ok
 
-      unknown ->
-        error(dsl_state, [:cache, type], """
-        `#{type}` names actions that are not #{label} on this resource: #{inspect(unknown)}.
+      wrong_type ->
+        dsl_error(dsl_state, [:cache, type], """
+        `#{type}` names actions that are not #{label} on this resource: #{inspect(wrong_type)}.
         Known #{label}: #{inspect(Enum.sort(known))}.
         """)
     end
@@ -65,11 +65,11 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
       [] ->
         :ok
 
-      dupes ->
-        error(
+      duplicates ->
+        dsl_error(
           dsl_state,
           [:cache, type],
-          "`#{type}` is declared more than once for: #{inspect(dupes)}."
+          "`#{type}` is declared more than once for: #{inspect(duplicates)}."
         )
     end
   end
@@ -83,13 +83,13 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
 
       cond do
         is_nil(action.returns) ->
-          error(dsl_state, [:cache, :action], """
+          dsl_error(dsl_state, [:cache, :action], """
           `action #{inspect(action.name)}` returns nothing, so there is nothing to cache.
           Give the action a return type, or remove it from the `cache` block.
           """)
 
         reactor?(opts[:run]) ->
-          error(dsl_state, [:cache, :action], """
+          dsl_error(dsl_state, [:cache, :action], """
           `action #{inspect(action.name)}` runs a Reactor, which AshCache cannot cache.
           Call the Reactor from a `run` function instead, or remove the action from the `cache` block.
           """)
@@ -108,20 +108,20 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
     UndefinedFunctionError -> false
   end
 
-  defp verify_warms(dsl_state, reads, warms) do
-    case Enum.reject(warms, &(&1 in reads)) do
+  defp verify_refreshes(dsl_state, reads, refreshes) do
+    case Enum.reject(refreshes, &(&1 in reads)) do
       [] ->
         :ok
 
       [uncached | _rest] ->
-        error(dsl_state, [:cache, :warm], """
-        `warm #{inspect(uncached)}` names an action that is not a cached read on this resource.
+        dsl_error(dsl_state, [:cache, :refresh], """
+        `refresh #{inspect(uncached)}` names an action that is not a cached read on this resource.
         Cached read actions: #{inspect(Enum.sort(reads))}.
         """)
     end
   end
 
-  defp error(dsl_state, path, message) do
+  defp dsl_error(dsl_state, path, message) do
     {:error,
      DslError.exception(
        module: Verifier.get_persisted(dsl_state, :module),

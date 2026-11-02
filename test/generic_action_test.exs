@@ -138,6 +138,21 @@ defmodule AshCache.GenericActionTest do
   # Spark reports a verifier error as a compile warning on stderr, so
   # `assert_raise` around the compile never sees it.
   describe "compile-time checks" do
+    test "an action without its own ttl uses the cache block's ttl" do
+      [{module, _binary}] =
+        compile_resource(
+          """
+          action :rates, :float do
+            run fn _input, _context -> {:ok, 1.5} end
+          end
+          """,
+          "action :rates"
+        )
+
+      {AshCache.Actions.RunThrough, opts} = Ash.Resource.Info.action(module, :rates).run
+      assert opts[:ttl] == to_timeout(minute: 5)
+    end
+
     test "a Reactor action is rejected" do
       assert capture_io(:stderr, fn ->
                compile_resource("""
@@ -166,7 +181,7 @@ defmodule AshCache.GenericActionTest do
     end
   end
 
-  defp compile_resource(action_body) do
+  defp compile_resource(action_body, cache_body \\ "action :rates, ttl: 1000") do
     name = "AshCache.Test.CompiledAction#{System.unique_integer([:positive])}"
 
     Code.compile_string("""
@@ -177,7 +192,7 @@ defmodule AshCache.GenericActionTest do
         validate_domain_inclusion?: false
 
       cache do
-        action :rates, ttl: 1000
+        #{cache_body}
       end
 
       actions do

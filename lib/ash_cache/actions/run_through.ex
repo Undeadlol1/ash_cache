@@ -19,7 +19,7 @@ defmodule AshCache.Actions.RunThrough do
 
   use Ash.Resource.Actions.Implementation
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Key
   alias AshCache.Store
 
@@ -32,11 +32,11 @@ defmodule AshCache.Actions.RunThrough do
     store = Keyword.fetch!(opts, :store)
 
     key =
-      Key.derive(
+      Key.build(
         input.resource,
         input.action.name,
         %{arguments: input.arguments},
-        Generation.current(store, input.resource),
+        CacheVersion.current(store, input.resource),
         actor: context.actor,
         tenant: context.tenant
       )
@@ -61,8 +61,8 @@ defmodule AshCache.Actions.RunThrough do
 
     with {:ok, value} <- ok_value(result),
          true <- cacheable?(value, Keyword.get(opts, :cache_empty?, false)) do
-      put_opts = Keyword.put(Keyword.get(opts, :adapter_options, []), :ttl, opts[:ttl])
-      Store.put(store, key, value, put_opts)
+      store_opts = Keyword.put(Keyword.get(opts, :store_options, []), :ttl, opts[:ttl])
+      Store.put(store, key, value, store_opts)
     end
 
     result
