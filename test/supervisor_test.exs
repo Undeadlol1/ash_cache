@@ -4,7 +4,7 @@ defmodule AshCache.SupervisorTest do
   alias AshCache.Test.Domain
 
   test "discovers every distinct store declared by cached resources" do
-    assert Enum.sort(AshCache.Supervisor.stores([Domain])) ==
+    assert Enum.sort(AshCache.Supervisor.store_names([Domain])) ==
              [:ash_cache, :partial_store]
   end
 
@@ -20,7 +20,7 @@ defmodule AshCache.SupervisorTest do
   end
 
   test "no cached resources means no children" do
-    assert AshCache.Supervisor.stores([]) == []
+    assert AshCache.Supervisor.store_names([]) == []
   end
 
   test "a store that is already running elsewhere is adopted, not fatal" do

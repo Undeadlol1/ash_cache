@@ -12,13 +12,13 @@ defmodule AshCache.Store.Adapter do
   Stores a value. Recognised options:
 
     * `:ttl` — milliseconds, or `:infinity`
-    * `:pin` — exempt this entry from any capacity bound the adapter
+    * `:never_evict` — exempt this entry from any capacity bound the adapter
       enforces. For metadata an adapter must not drop on its own, such as
-      the generation counters cache invalidation reads. Adapters without a
+      the version counters cache invalidation reads. Adapters without a
       bound ignore it.
   """
   @callback put(store :: atom(), key :: term(), value :: term(), opts :: keyword()) ::
               :ok | {:error, term()}
-  @callback del(store :: atom(), key :: term()) :: :ok | {:error, term()}
+  @callback delete(store :: atom(), key :: term()) :: :ok | {:error, term()}
   @callback clear(store :: atom()) :: :ok | {:error, term()}
 end

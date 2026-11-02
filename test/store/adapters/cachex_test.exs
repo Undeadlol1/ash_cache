@@ -8,14 +8,21 @@ defmodule AshCache.Store.Adapters.CachexTest do
     {:ok, store: store}
   end
 
-  test "get, put, del and clear operate on the real Cachex table", %{store: store} do
+  test "reading, writing, deleting and clearing work on the real Cachex table", %{store: store} do
     assert {:ok, nil} = @adapter.get(store, :missing)
 
     :ok = @adapter.put(store, :kept, "value", [])
     assert {:ok, 1} = Cachex.size(store)
 
-    :ok = @adapter.del(store, :kept)
+    :ok = @adapter.delete(store, :kept)
     :ok = @adapter.clear(store)
     assert {:ok, 0} = Cachex.size(store)
+  end
+
+  test "an :infinity ttl stores an entry that never expires", %{store: store} do
+    :ok = @adapter.put(store, :forever, "value", ttl: :infinity)
+
+    assert {:ok, nil} = Cachex.ttl(store, :forever)
+    assert {:ok, "value"} = @adapter.get(store, :forever)
   end
 end

@@ -51,7 +51,7 @@ defmodule AshCache.ClearWhenChangedTest do
     comment = create!(Comment, "first")
     prime(Post)
 
-    comment |> Ash.Changeset.for_update(:update, %{value: 2}) |> Ash.update!()
+    comment |> Ash.Changeset.for_update(:update, %{quantity: 2}) |> Ash.update!()
     Events.drain()
 
     assert_cleared(Post)
@@ -81,7 +81,7 @@ defmodule AshCache.ClearWhenChangedTest do
       create!(Comment, "first")
       prime(Post)
 
-      assert %{status: :success} = Ash.bulk_update(Comment, :update, %{value: 9})
+      assert %{status: :success} = Ash.bulk_update(Comment, :update, %{quantity: 9})
       Events.drain()
 
       assert_cleared(Post)

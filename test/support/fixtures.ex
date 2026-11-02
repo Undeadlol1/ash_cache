@@ -54,7 +54,7 @@ defmodule AshCache.Test.WidgetScaffold do
       attributes do
         uuid_primary_key(:id)
         attribute(:name, :string, allow_nil?: false, public?: true)
-        attribute(:value, :integer, allow_nil?: false, default: 0, public?: true)
+        attribute(:quantity, :integer, allow_nil?: false, default: 0, public?: true)
       end
     end
   end
@@ -124,9 +124,9 @@ defmodule AshCache.Test.PartiallyCachedWidget do
   widget_actions()
 end
 
-defmodule AshCache.Test.WarmedWidget do
+defmodule AshCache.Test.RefreshedWidget do
   @moduledoc """
-  Warm-after-write case: a successful write re-runs the declared read so the
+  Refresh-after-write case: a successful write re-runs the declared read so the
   fresh value is cached before anyone asks for it.
   """
 
@@ -134,7 +134,7 @@ defmodule AshCache.Test.WarmedWidget do
 
   cache do
     read(:get_by_name, ttl: to_timeout(hour: 1))
-    warm(:get_by_name, args: [name: :name])
+    refresh(:get_by_name, arguments: [name: :name])
   end
 
   widget_attributes()
@@ -226,6 +226,62 @@ defmodule AshCache.Test.TwoTtlWidget do
   widget_actions()
 end
 
+defmodule AshCache.Test.DefaultTtlWidget do
+  @moduledoc "No ttl anywhere: reads fall back to the built-in default."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:get_by_name)
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.BlockTtlWidget do
+  @moduledoc "Block ttl: one read inherits it, one overrides it."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    ttl(to_timeout(minute: 2))
+    read(:get_by_name)
+    read(:paged, ttl: to_timeout(second: 10))
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.InfiniteBlockWidget do
+  @moduledoc "Block ttl :infinity, inherited by the read."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    ttl(:infinity)
+    read(:get_by_name)
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.InfiniteReadWidget do
+  @moduledoc "Per-read ttl :infinity over a finite block ttl."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    ttl(to_timeout(minute: 2))
+    read(:get_by_name, ttl: :infinity)
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
 defmodule AshCache.Test.TenantWidget do
   @moduledoc "Tenant-isolation case: rows belong to a tenant through an attribute."
 
@@ -258,8 +314,8 @@ defmodule AshCache.Test.TenantWidget do
   end
 end
 
-defmodule AshCache.Test.WarmedTenantWidget do
-  @moduledoc "Warm-after-write case on a multi-tenant resource."
+defmodule AshCache.Test.RefreshedTenantWidget do
+  @moduledoc "Refresh-after-write case on a multi-tenant resource."
 
   use Ash.Resource,
     domain: AshCache.Test.Domain,
@@ -277,7 +333,7 @@ defmodule AshCache.Test.WarmedTenantWidget do
 
   cache do
     read(:get_by_name, ttl: to_timeout(hour: 1))
-    warm(:get_by_name, args: [name: :name])
+    refresh(:get_by_name, arguments: [name: :name])
   end
 
   attributes do
@@ -295,7 +351,7 @@ defmodule AshCache.Test.WarmedTenantWidget do
   end
 end
 
-defmodule AshCache.Test.FilteredWidget do
+defmodule AshCache.Test.MapArgumentWidget do
   @moduledoc "Map-argument case: a cached read taking a map argument."
 
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
@@ -317,7 +373,7 @@ end
 
 defmodule AshCache.Test.LabelledWidget do
   @moduledoc """
-  Warm-args case: the warmed read's argument (`label`) is named differently
+  Refresh-arguments case: the refreshed read's argument (`label`) is named differently
   from the attribute (`name`) that feeds it.
   """
 
@@ -325,7 +381,7 @@ defmodule AshCache.Test.LabelledWidget do
 
   cache do
     read(:get_by_label, ttl: to_timeout(hour: 1))
-    warm(:get_by_label, args: [label: :name])
+    refresh(:get_by_label, arguments: [label: :name])
   end
 
   widget_attributes()
@@ -409,14 +465,18 @@ defmodule AshCache.Test.Domain do
     end
 
     resource(AshCache.Test.PartiallyCachedWidget)
-    resource(AshCache.Test.WarmedWidget)
+    resource(AshCache.Test.RefreshedWidget)
     resource(AshCache.Test.GuardedWidget)
     resource(AshCache.Test.OwnedWidget)
     resource(AshCache.Test.TwoTtlWidget)
+    resource(AshCache.Test.DefaultTtlWidget)
+    resource(AshCache.Test.BlockTtlWidget)
+    resource(AshCache.Test.InfiniteBlockWidget)
+    resource(AshCache.Test.InfiniteReadWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
-    resource(AshCache.Test.WarmedTenantWidget)
-    resource(AshCache.Test.FilteredWidget)
+    resource(AshCache.Test.RefreshedTenantWidget)
+    resource(AshCache.Test.MapArgumentWidget)
     resource(AshCache.Test.LabelledWidget)
     resource(AshCache.Test.Comment)
     resource(AshCache.Test.Post)

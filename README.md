@@ -42,8 +42,8 @@ children = [
 
 ## Usage
 
-Add the extension to a resource and list each read to cache, with how long
-its results are kept (`ttl`, in milliseconds):
+Add the extension to a resource and list each read to cache. `ttl` is how
+long its results are kept, in milliseconds:
 
 ```elixir
 defmodule MyApp.Shop.Product do
@@ -61,6 +61,25 @@ end
 `get_by_sku` and `featured` now come from the cache. Other reads go to the
 database as before. The cache clears when a product is created, updated or
 deleted.
+
+`ttl` is optional. A read without one keeps its results for 5 minutes. To
+change that for every read of the resource, set `ttl` on the block:
+
+```elixir
+cache do
+  ttl :timer.hours(1)
+
+  read :get_by_sku
+  read :featured, ttl: :timer.minutes(1)
+end
+```
+
+Here `get_by_sku` keeps results for an hour and `featured` for a minute.
+
+`ttl: :infinity` keeps results until the resource changes. Use it only
+for data that is rarely written: a write doesn't delete old results from
+memory, it only stops them being used, and they stay in memory until
+their `ttl` runs out.
 
 The [Examples](documentation/topics/examples.md) page shows the `cache`
 block for common app features.
@@ -128,6 +147,9 @@ fails to compile.
   related resource is listed in `clear_when_changed`.
 - **Each node has its own cache.** On several nodes, a write clears the
   cache only on the node that made it. See [Storage](documentation/topics/storage.md).
+- **No protection when a popular entry runs out.** Every request that
+  arrives before the read is cached again goes to the database. Choose a
+  `ttl` your database can handle that burst for.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

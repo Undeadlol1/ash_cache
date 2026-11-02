@@ -71,7 +71,7 @@ defmodule AshCache.TelemetryTest do
     get_by_name!(CachedWidget, "w")
     flush_events()
 
-    widget |> Ash.Changeset.for_update(:update, %{value: 2}) |> Ash.update!()
+    widget |> Ash.Changeset.for_update(:update, %{quantity: 2}) |> Ash.update!()
 
     assert_received {:ash_cache, :invalidate,
                      %{resource: CachedWidget, store: :ash_cache} = metadata}
@@ -90,7 +90,7 @@ defmodule AshCache.TelemetryTest do
     assert_received {:ash_cache, :invalidate, %{resource: CachedWidget}}
   end
 
-  test "AshCache.invalidate/1 emits invalidate" do
+  test "invalidating by hand emits invalidate" do
     :ok = AshCache.invalidate(PartiallyCachedWidget)
 
     assert_received {:ash_cache, :invalidate,
@@ -141,7 +141,7 @@ defmodule AshCache.TelemetryTest do
     end
   end
 
-  test "a store get error emits a miss carrying the error and still reads" do
+  test "a store that fails to answer emits a miss carrying the error and still reads" do
     Process.put(:ash_cache_adapter, FailingGetAdapter)
     on_exit(fn -> Process.delete(:ash_cache_adapter) end)
 

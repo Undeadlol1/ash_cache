@@ -105,9 +105,6 @@ end
 
 For two queries, read two different SKUs instead of using two actors.
 
-Pass the actor when the query is built: through a code interface, as
-above, or with `Ash.Query.for_read(query, :get_by_sku, %{sku: "A1"}, actor: alice)`.
-
 ## Code that reads in another process
 
 **A Task started by the test** sends its events to the test, so
