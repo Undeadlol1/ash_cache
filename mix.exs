@@ -12,7 +12,8 @@ defmodule AshCache.MixProject do
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
-      docs: docs(),
+      aliases: aliases(),
+      docs: &docs/0,
       description: description(),
       package: package(),
       name: "AshCache",
@@ -36,12 +37,57 @@ defmodule AshCache.MixProject do
       # with policies, so it is a test-only dependency here rather than
       # something this package imposes on its users.
       {:picosat_elixir, "~> 0.2", only: :test},
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      # Only for `mix spark.cheat_sheets`, which generates the DSL reference.
+      {:igniter, "~> 0.6", only: :dev, runtime: false}
+    ]
+  end
+
+  defp aliases do
+    [
+      "spark.cheat_sheets": "spark.cheat_sheets --extensions AshCache.Resource",
+      docs: ["spark.cheat_sheets", "docs"]
     ]
   end
 
   defp docs do
-    [main: "readme", extras: ["README.md", "CHANGELOG.md"], source_ref: "v#{@version}"]
+    [
+      main: "readme",
+      source_ref: "v#{@version}",
+      extras: [
+        {"README.md", title: "Home"},
+        "documentation/topics/examples.md",
+        "documentation/topics/how-it-works.md",
+        "documentation/topics/testing.md",
+        {"documentation/dsls/DSL-AshCache.Resource.md",
+         search_data: Spark.Docs.search_data_for(AshCache.Resource)},
+        "CHANGELOG.md"
+      ],
+      groups_for_extras: [
+        Topics: ~r"documentation/topics",
+        Reference: ~r"documentation/dsls",
+        "About AshCache": ["CHANGELOG.md"]
+      ],
+      groups_for_modules: [
+        "Public API": [AshCache, AshCache.Resource, AshCache.Supervisor],
+        Configuration: [AshCache.Info, AshCache.Warm],
+        "How it works": [
+          AshCache.Key,
+          AshCache.Generation,
+          AshCache.Preparations.ReadThrough,
+          AshCache.Changes.BumpGeneration,
+          AshCache.Resource.Transformers.AttachCacheHooks,
+          AshCache.Resource.Verifiers.ValidateConfig
+        ],
+        Storage: [
+          AshCache.Store,
+          AshCache.Store.Adapter,
+          AshCache.Store.Adapters.Cachex,
+          AshCache.Store.Adapters.ProcessLocal,
+          AshCache.Store.Adapters.Noop
+        ]
+      ]
+    ]
   end
 
   defp description do
@@ -52,7 +98,8 @@ defmodule AshCache.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
+      files:
+        ~w(lib documentation .formatter.exs mix.exs README.md CHANGELOG.md LICENSE usage-rules.md)
     ]
   end
 end
