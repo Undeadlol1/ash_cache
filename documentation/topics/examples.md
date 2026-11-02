@@ -7,7 +7,7 @@ in the [DSL reference](../dsls/DSL-AshCache.Resource.md).
 Two things apply to every example:
 
 - Any successful create, update or destroy through Ash clears all cached
-  reads of that resource. `ttl` only matters for changes that do not go
+  reads and generic actions of that resource. `ttl` only matters for changes that do not go
   through a write on the same resource.
 - The default store keeps each server's cache in its own memory. If your
   app runs on several servers, a write clears the cache only on the server
@@ -193,6 +193,59 @@ AshCache.invalidate(MyApp.Shop.Product)
 
 `AshCache.invalidate/1` does exactly what a write through Ash does. Like a
 write, it clears only the server it runs on.
+
+## Data from another service
+
+An exchange rate, a weather forecast or a shipping price that your app gets
+from another company's API. In Ash such a call is usually a generic action.
+
+```elixir
+defmodule MyApp.Money.ExchangeRate do
+  use Ash.Resource,
+    domain: MyApp.Money,
+    extensions: [AshCache.Resource]
+
+  cache do
+    action :get_rate, ttl: :timer.minutes(10)
+  end
+
+  actions do
+    action :get_rate, :decimal do
+      argument :from, :string, allow_nil?: false
+      argument :to, :string, allow_nil?: false
+
+      run fn input, _context ->
+        MyApp.RatesApi.fetch(input.arguments.from, input.arguments.to)
+      end
+    end
+  end
+end
+```
+
+The first call for a pair of currencies calls the API. For the next 10
+minutes, calls with the same arguments get the saved rate, and the `run`
+function is not called. Each set of arguments, each actor and each tenant
+gets its own entry. AshCache cannot see when the other service changes its
+data, so `ttl` is how old a rate can get.
+
+Errors are not saved, so a failed call is tried again next time. `nil` is
+never saved, and `[]` is saved only with `cache_empty?: true`. Ash still
+checks the resource's policies on every call, also when the answer comes
+from the cache.
+
+The action must have a return type. An action whose `run` is a Reactor
+cannot be cached; call the Reactor from a `run` function instead.
+
+Don't cache the rate a customer is charged with. Skip the cache for that
+call:
+
+```elixir
+MyApp.Money.ExchangeRate
+|> Ash.ActionInput.for_action(:get_rate, %{from: "EUR", to: "USD"},
+  context: %{ash_cache: :bypass}
+)
+|> Ash.run_action!()
+```
 
 ## A report that must be exact
 

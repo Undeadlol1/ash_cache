@@ -10,6 +10,13 @@ where it caches two production resources.
   `cache_empty?` and `adapter_options` are set per read too. Reads that are
   not listed are never cached. Keys are built from the action, the whole
   query, the actor and the tenant.
+- `action :name, ttl: ...` caches a generic action, such as a call to
+  another service. On a hit its `run` is not called. Policies are still
+  checked. Keys are built from the action, its arguments, the actor and the
+  tenant; writes and `AshCache.invalidate/1` clear these entries too. An
+  action with no return type, or whose `run` is a Reactor, fails to
+  compile. Telemetry: `[:ash_cache, :action, :hit]` and
+  `[:ash_cache, :action, :miss]`.
 - `warm` re-runs a cached read after each create or update, so the new
   value is cached before anyone asks for it.
 - Generation-based invalidation: a successful write bumps the resource's

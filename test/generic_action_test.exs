@@ -81,7 +81,9 @@ defmodule AshCache.GenericActionTest do
       |> Ash.ActionInput.set_context(%{ash_cache: :bypass})
       |> Ash.run_action()
 
-    assert runs() == ["EUR", "EUR"]
+    {:ok, [1.5]} = rates("EUR", context: %{ash_cache: :bypass})
+
+    assert runs() == ["EUR", "EUR", "EUR"]
     assert Events.drain() == []
   end
 

@@ -31,10 +31,15 @@ when a requirement demands them.
 - `ttl` (milliseconds) is required on every `read`; there is no
   block-level `ttl` and no way to cache all reads at once. Unlisted reads are
   never cached. Every name must be a read action on the resource, listed once, or
-  compilation fails. A `cache` block with no `read` fails too.
+  compilation fails. A `cache` block with no `read` or `action` fails too.
 - Options on `read`: `cache_empty?: true` caches `[]` and `nil` results (off
   by default); `adapter_options: [...]` is passed verbatim to the adapter's
   `put/4`.
+- `action :name, ttl: ...` caches a generic action the same way, keyed by
+  its arguments, actor and tenant; on a hit its `run` is not called. It
+  takes the same options as `read`. Errors and `nil` are never cached. The
+  action must have a return type and its `run` must not be a Reactor, or
+  compilation fails. Policies are still checked on every call.
 - Options on the block: `store :name` gives the resource its own Cachex store
   (default `:ash_cache`).
 - `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`
@@ -43,8 +48,8 @@ when a requirement demands them.
   default) and for the written record's tenant, so `warm` only helps reads
   normally called the same way. Do not use it for per-user reads. Each
   `warm` costs the writer one extra read.
-- Every successful create/update/destroy clears all cached reads of the
-  resource, after commit.
+- Every successful create/update/destroy clears all cached reads and
+  generic actions of the resource, after commit.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
   Choose `ttl` per read: long for content that rarely changes, short for
   results that change without a write (time-based filters, aggregates over
@@ -68,7 +73,9 @@ when a requirement demands them.
 - Do not write cache keys or invalidation by hand. Both are automatic.
 - To skip the cache for one query, set `context: %{ash_cache: :bypass}`.
   Pass it to `Ash.Query.for_read/4` or `Ash.read/2`, or call
-  `Ash.Query.set_context/2` before you run the query.
+  `Ash.Query.set_context/2` before you run the query. For a generic action,
+  pass it to `Ash.ActionInput.for_action/4` or call
+  `Ash.ActionInput.set_context/2`.
 - To invalidate a resource at runtime (e.g. after a raw SQL import):
   `AshCache.invalidate(Resource)`.
 - To wipe a whole store (all resources in it): `AshCache.clear_store(:name)`.
@@ -82,7 +89,9 @@ when a requirement demands them.
 
 - Events: `[:ash_cache, :read, :hit]`, `[:ash_cache, :read, :miss]`
   (metadata `:resource`, `:action`, `:store`; a miss also has `:error`) and
-  `[:ash_cache, :invalidate]` (`:resource`, `:store`). Bypassed and uncached
+  `[:ash_cache, :invalidate]` (`:resource`, `:store`). Generic actions send
+  `[:ash_cache, :action, :hit]` and `[:ash_cache, :action, :miss]` with the
+  same metadata. Bypassed and uncached
   reads emit nothing.
 - In tests, call `AshCache.Testing.capture_events()` in `setup`, then
   `assert_received {:ash_cache, :hit, %{action: :get_by_sku}}` (kinds:

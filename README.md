@@ -11,8 +11,8 @@ changes.
 
 ## What you get
 
-- **You pick what is cached.** List the reads to cache in a `cache` block on
-  the resource.
+- **You pick what is cached.** List the reads and generic actions to cache
+  in a `cache` block on the resource.
 - **No manual clearing.** When a record is created, updated or deleted, the
   cache for that resource is cleared.
 - **No data leaks between users.** Each user and each tenant has their own
@@ -62,6 +62,10 @@ end
 database as before. The cache clears when a product is created, updated or
 deleted.
 
+Generic actions, such as a call to another company's API, are cached the
+same way with `action :get_rate, ttl: :timer.minutes(10)`. See "Data from
+another service" in [Examples](documentation/topics/examples.md).
+
 The [Examples](documentation/topics/examples.md) page shows the `cache`
 block for common app features.
 
@@ -81,7 +85,7 @@ block for common app features.
 ## Limits
 
 - **The cache clears per resource, not per record.** Any write to a
-  resource clears every cached read of that resource.
+  resource clears every cached read and generic action of that resource.
 - **Related records can go stale.** A cached read that loads related
   records keeps the old related records until the entry expires. Keep
   `load` off cached reads, or choose a short `ttl`.
