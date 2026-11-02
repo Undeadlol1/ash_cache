@@ -65,6 +65,21 @@ deleted.
 The [Examples](documentation/topics/examples.md) page shows the `cache`
 block for common app features.
 
+## When cached results are thrown away
+
+A cached result is thrown away in three cases:
+
+1. **The resource is changed through Ash.** Creating, updating or deleting
+   any product throws away every cached product read, right away.
+2. **The `ttl` runs out**, even if nothing changed.
+3. **You call `AshCache.invalidate(MyApp.Shop.Product)`.** Use this when the
+   data changed without Ash, for example after an import.
+
+Changes to other resources don't count. If a cached post read includes the
+post's comments, adding a comment doesn't throw it away. The comments
+update when the `ttl` runs out, or sooner if you call
+`AshCache.invalidate(MyApp.Blog.Post)` after creating a comment.
+
 ## Learn more
 
 - [Examples](documentation/topics/examples.md): the `cache` block for common

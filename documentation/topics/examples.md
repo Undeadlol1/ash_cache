@@ -6,9 +6,9 @@ in the [DSL reference](../dsls/DSL-AshCache.Resource.md).
 
 Two things apply to every example:
 
-- Any successful create, update or destroy through Ash clears all cached
-  reads of that resource. `ttl` only matters for changes that do not go
-  through a write on the same resource.
+- A cached result is thrown away when the resource is changed through Ash,
+  when its `ttl` runs out, or when you call `AshCache.invalidate/1`.
+  Changes to other resources don't throw it away.
 - The default store keeps each server's cache in its own memory. If your
   app runs on several servers, a write clears the cache only on the server
   that made it, and the others serve the old result until `ttl` runs out.
