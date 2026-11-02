@@ -77,7 +77,7 @@ when a requirement demands them.
 - To disable caching in one process (tests, scripts):
   `Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Noop)`.
 - A custom store implements `AshCache.Store.Adapter` (`get/2`, `put/4`,
-  `del/2`, `clear/1`; a miss is `{:ok, nil}`) and is selected with
+  `delete/2`, `clear/1`; a miss is `{:ok, nil}`) and is selected with
   `config :ash_cache, adapter: MyAdapter`.
 
 ## Telemetry and tests

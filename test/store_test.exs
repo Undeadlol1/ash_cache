@@ -33,7 +33,7 @@ defmodule AshCache.StoreTest do
       assert {:ok, nil} = Store.get(store, :key)
       assert :ok = Store.put(store, :key, "value", ttl: to_timeout(hour: 1))
       assert {:ok, "value"} = Store.get(store, :key)
-      assert :ok = Store.del(store, :key)
+      assert :ok = Store.delete(store, :key)
       assert {:ok, nil} = Store.get(store, :key)
 
       assert :ok = Store.put(store, :other, "value")

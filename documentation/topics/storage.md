@@ -54,7 +54,7 @@ AshCache.clear_store(:products_cache)
 ## Write your own adapter
 
 An adapter is a module that implements `AshCache.Store.Adapter`: `get/2`,
-`put/4`, `del/2` and `clear/1`. Start from the built-in
+`put/4`, `delete/2` and `clear/1`. Start from the built-in
 [Cachex adapter](https://github.com/Undeadlol1/ash_cache/blob/main/lib/ash_cache/store/adapters/cachex.ex),
 which is about thirty lines.
 
@@ -89,5 +89,5 @@ end
 ### Test your adapter
 
 Copy the package's contract test, `test/support/store_contract.ex` in the
-repository. It runs the same `get`, `put`, `del`, `clear` and expiry checks
+repository. It runs the same `get`, `put`, `delete`, `clear` and expiry checks
 against every built-in adapter.

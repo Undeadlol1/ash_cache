@@ -56,7 +56,7 @@ defmodule AshCache.Test.StoreContract do
 
       test "deleting a key removes its value", %{store: store} do
         :ok = @adapter.put(store, :key, "value", [])
-        assert :ok = @adapter.del(store, :key)
+        assert :ok = @adapter.delete(store, :key)
         assert {:ok, nil} = @adapter.get(store, :key)
       end
 

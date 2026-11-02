@@ -23,7 +23,7 @@ defmodule AshCache.Store.Adapters.Cachex do
   end
 
   @impl true
-  def del(store, key), do: discard_count(Cachex.del(store, key))
+  def delete(store, key), do: discard_count(Cachex.del(store, key))
 
   @impl true
   def clear(store), do: discard_count(Cachex.clear(store))

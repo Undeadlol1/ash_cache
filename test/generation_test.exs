@@ -22,7 +22,7 @@ defmodule AshCache.GenerationTest do
     @impl true
     def put(_store, _key, _value, _opts), do: {:error, :store_down}
     @impl true
-    def del(_store, _key), do: {:error, :store_down}
+    def delete(_store, _key), do: {:error, :store_down}
     @impl true
     def clear(_store), do: {:error, :store_down}
   end

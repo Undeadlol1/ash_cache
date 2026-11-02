@@ -38,7 +38,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
           preparation_opts = [
             store: store,
-            ttl: AshCache.CachedRead.effective_ttl(read, block_ttl),
+            ttl: AshCache.CachedRead.ttl(read, block_ttl),
             cache_empty?: read.cache_empty?,
             adapter_options: read.adapter_options
           ]

@@ -14,7 +14,7 @@ defmodule AshCache.Store.Adapters.CachexTest do
     :ok = @adapter.put(store, :kept, "value", [])
     assert {:ok, 1} = Cachex.size(store)
 
-    :ok = @adapter.del(store, :kept)
+    :ok = @adapter.delete(store, :kept)
     :ok = @adapter.clear(store)
     assert {:ok, 0} = Cachex.size(store)
   end

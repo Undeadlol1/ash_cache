@@ -12,7 +12,7 @@ defmodule AshCache.Test.FailingGetAdapter do
   defdelegate put(store, key, value, opts), to: ProcessLocal
 
   @impl true
-  defdelegate del(store, key), to: ProcessLocal
+  defdelegate delete(store, key), to: ProcessLocal
 
   @impl true
   defdelegate clear(store), to: ProcessLocal

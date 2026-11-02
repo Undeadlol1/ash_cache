@@ -30,7 +30,7 @@ defmodule AshCache.Store.Adapters.ProcessLocalTest do
 
   test "deleting and clearing also drop the key tracking", %{store: store} do
     :ok = @adapter.put(store, :tracked, 1, [])
-    :ok = @adapter.del(store, :tracked)
+    :ok = @adapter.delete(store, :tracked)
     :ok = @adapter.clear(store)
 
     assert Enum.filter(Process.get_keys(), &match?({:ash_cache_keys, ^store}, &1)) == []

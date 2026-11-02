@@ -28,7 +28,7 @@ defmodule AshCache.Test.GatedCounterReadAdapter do
   defdelegate put(store, key, value, opts), to: CachexAdapter
 
   @impl true
-  defdelegate del(store, key), to: CachexAdapter
+  defdelegate delete(store, key), to: CachexAdapter
 
   @impl true
   defdelegate clear(store), to: CachexAdapter

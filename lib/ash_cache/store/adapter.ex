@@ -19,6 +19,6 @@ defmodule AshCache.Store.Adapter do
   """
   @callback put(store :: atom(), key :: term(), value :: term(), opts :: keyword()) ::
               :ok | {:error, term()}
-  @callback del(store :: atom(), key :: term()) :: :ok | {:error, term()}
+  @callback delete(store :: atom(), key :: term()) :: :ok | {:error, term()}
   @callback clear(store :: atom()) :: :ok | {:error, term()}
 end

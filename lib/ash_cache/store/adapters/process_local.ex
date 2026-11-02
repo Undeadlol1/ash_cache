@@ -71,7 +71,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   end
 
   @impl true
-  def del(store, key) do
+  def delete(store, key) do
     delete_entry(store, key)
     :ok
   end
