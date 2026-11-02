@@ -17,6 +17,7 @@ defmodule AshCache.Resource do
   cached unless you ask. Entries go in the shared `:ash_cache` store unless you
   set `store`. Every create, update or destroy clears the resource's cached
   reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
+  So does a write to any resource listed in `clear_when_changed`.
 
   Reads without a `read` entry are never cached.
   """
@@ -47,6 +48,16 @@ defmodule AshCache.Resource do
         type: :atom,
         default: :ash_cache,
         doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
+      ],
+      clear_when_changed: [
+        type: {:list, :atom},
+        default: [],
+        doc: """
+        Other resources whose create, update or destroy also clears this
+        resource's cached reads, e.g. `clear_when_changed [MyApp.Blog.Comment]`.
+        Each one must use the `AshCache.Resource` extension, even if it caches
+        nothing itself.
+        """
       ]
     ]
   }

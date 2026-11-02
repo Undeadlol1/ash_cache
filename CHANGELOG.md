@@ -12,6 +12,11 @@ where it caches two production resources.
   query, the actor and the tenant.
 - `warm` re-runs a cached read after each create or update, so the new
   value is cached before anyone asks for it.
+- `clear_when_changed [MyApp.Blog.Comment]` throws away a resource's cached
+  reads when a listed resource is created, updated or deleted through Ash.
+  The listed resource needs the `AshCache.Resource` extension, but no
+  `cache` block: a resource may now use the extension without caching any
+  read.
 - Generation-based invalidation: a successful write bumps the resource's
   counter in `after_transaction`, so a rolled-back write cannot leave stale
   entries behind and old entries become unreachable in O(1).

@@ -26,6 +26,7 @@ defmodule AshCache.Preparations.ReadThrough do
   use Ash.Resource.Preparation
 
   alias AshCache.Generation
+  alias AshCache.Info
   alias AshCache.Key
   alias AshCache.Store
 
@@ -46,7 +47,7 @@ defmodule AshCache.Preparations.ReadThrough do
 
   defp read_through(query, opts, context) do
     store = Keyword.fetch!(opts, :store)
-    key = derive_key(query, store, context)
+    key = derive_key(query, store, opts, context)
 
     case Store.get(store, key) do
       {:ok, nil} ->
@@ -68,8 +69,20 @@ defmodule AshCache.Preparations.ReadThrough do
     :telemetry.execute([:ash_cache, :read, event], %{}, Map.merge(metadata, Map.new(extra)))
   end
 
-  defp derive_key(query, store, context) do
-    generation = Generation.current(store, query.resource)
+  defp derive_key(query, store, opts, context) do
+    generation =
+      case Keyword.get(opts, :clear_when_changed, []) do
+        [] ->
+          Generation.current(store, query.resource)
+
+        # A write to a listed resource bumps that resource's generation, in its
+        # own store, so keying on it clears this resource's reads too.
+        others ->
+          [
+            Generation.current(store, query.resource)
+            | Enum.map(others, &Generation.current(Info.cache_store!(&1), &1))
+          ]
+      end
 
     # The actor is read from the query at hook time: one passed only to
     # `Ash.read/2` is applied after preparations run, so the preparation

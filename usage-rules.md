@@ -31,7 +31,7 @@ when a requirement demands them.
 - `ttl` (milliseconds) is required on every `read`; there is no
   block-level `ttl` and no way to cache all reads at once. Unlisted reads are
   never cached. Every name must be a read action on the resource, listed once, or
-  compilation fails. A `cache` block with no `read` fails too.
+  compilation fails.
 - Options on `read`: `cache_empty?: true` caches `[]` and `nil` results (off
   by default); `adapter_options: [...]` is passed verbatim to the adapter's
   `put/4`.
@@ -45,6 +45,13 @@ when a requirement demands them.
   `warm` costs the writer one extra read.
 - Every successful create/update/destroy clears all cached reads of the
   resource, after commit.
+- `clear_when_changed [MyApp.Blog.Comment]` on the block also clears the
+  resource's cached reads when a listed resource is created, updated or
+  destroyed through Ash (single or bulk), after commit. Each listed resource
+  must use `extensions: [AshCache.Resource]`; it needs no `cache` block.
+  Listing a module that is not such a resource fails compilation. It is not
+  passed along: if Post lists Comment and Comment lists Author, an Author
+  write does not clear Post. List Author on Post too.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
   Choose `ttl` per read: long for content that rarely changes, short for
   results that change without a write (time-based filters, aggregates over
@@ -55,9 +62,9 @@ when a requirement demands them.
 - Pass the actor and tenant when building the query (code interfaces,
   `Ash.read(Resource, actor: ...)`, or `Ash.Query.for_read(..., actor: ...)`).
   The cache key is built per actor and tenant.
-- Do not cache reads that `load` related data unless a short `ttl` is
-  acceptable. A write to the related resource does not clear the parent's
-  entry.
+- A cached read that `load`s related data keeps old related records until
+  `ttl`, unless the related resource is in `clear_when_changed`. Add it there,
+  or pick a short `ttl`.
 - Do not cache values that must be exact at the moment of use: stock counts
   at checkout, balances, permissions checked for a payment.
 - The default store is in memory per node. On several nodes a write clears

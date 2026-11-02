@@ -340,6 +340,62 @@ defmodule AshCache.Test.LabelledWidget do
   end
 end
 
+defmodule AshCache.Test.Comment do
+  @moduledoc """
+  Changed-resource case: caches nothing itself. It uses the extension only so
+  its writes are counted, which clears the reads of resources that list it in
+  `clear_when_changed`.
+  """
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.Post do
+  @moduledoc "Other-resource case: a write to a Comment clears the cached Post reads."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Comment])
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.Feed do
+  @moduledoc "A second resource listing Comment, next to Post."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    store(:partial_store)
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Comment])
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.SelfListedWidget do
+  @moduledoc "A resource that lists itself in `clear_when_changed`."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.SelfListedWidget])
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
@@ -362,5 +418,9 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.WarmedTenantWidget)
     resource(AshCache.Test.FilteredWidget)
     resource(AshCache.Test.LabelledWidget)
+    resource(AshCache.Test.Comment)
+    resource(AshCache.Test.Post)
+    resource(AshCache.Test.Feed)
+    resource(AshCache.Test.SelfListedWidget)
   end
 end

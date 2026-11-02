@@ -20,6 +20,7 @@ the tenant (see `AshCache.Key`). `ttl` is required; empty results are not
 cached unless you ask. Entries go in the shared `:ash_cache` store unless you
 set `store`. Every create, update or destroy clears the resource's cached
 reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
+So does a write to any resource listed in `clear_when_changed`.
 
 Reads without a `read` entry are never cached.
 
@@ -40,6 +41,7 @@ Which reads to cache, and where.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. |
+| [`clear_when_changed`](#cache-clear_when_changed){: #cache-clear_when_changed } | `list(atom)` | `[]` | Other resources whose create, update or destroy also clears this resource's cached reads, e.g. `clear_when_changed [MyApp.Blog.Comment]`. Each one must use the `AshCache.Resource` extension, even if it caches nothing itself. |
 
 
 

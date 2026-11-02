@@ -1,8 +1,12 @@
 defmodule AshCache.Resource.Verifiers.ValidateConfig do
   @moduledoc """
-  Rejects a `cache` block that caches nothing, names an action that is not a
-  read action, declares the same read twice, or warms a read it does not cache.
-  A typo in any of these would silently cache nothing.
+  Rejects a `cache` block that names an action that is not a read action,
+  declares the same read twice, warms a read it does not cache, or lists in
+  `clear_when_changed` a module that is not a resource using AshCache.
+  A typo in any of these would silently cache or clear nothing.
+
+  A resource may cache nothing: it can use the extension only so its writes
+  clear the reads of resources that list it in `clear_when_changed`.
   """
 
   use Spark.Dsl.Verifier
@@ -16,17 +20,12 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
     reads = for %AshCache.CachedRead{name: name} <- entities, do: name
     warms = for %AshCache.Warm{read: read} <- entities, do: read
 
-    with :ok <- verify_present(dsl_state, reads),
-         :ok <- verify_read_actions(dsl_state, reads),
-         :ok <- verify_unique(dsl_state, reads) do
-      verify_warms(dsl_state, reads, warms)
+    with :ok <- verify_read_actions(dsl_state, reads),
+         :ok <- verify_unique(dsl_state, reads),
+         :ok <- verify_warms(dsl_state, reads, warms) do
+      verify_clear_when_changed(dsl_state)
     end
   end
-
-  defp verify_present(dsl_state, []),
-    do: error(dsl_state, [:cache], "The `cache` block needs at least one `read` to cache.")
-
-  defp verify_present(_dsl_state, _reads), do: :ok
 
   defp verify_read_actions(dsl_state, reads) do
     known =
@@ -72,6 +71,30 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
         Cached read actions: #{inspect(Enum.sort(reads))}.
         """)
     end
+  end
+
+  # Without the extension a resource's writes bump nothing, so listing it
+  # would compile and never clear anything.
+  defp verify_clear_when_changed(dsl_state) do
+    dsl_state
+    |> Verifier.get_option([:cache], :clear_when_changed, [])
+    |> Enum.find_value(:ok, fn module ->
+      cond do
+        not Ash.Resource.Info.resource?(module) ->
+          error(dsl_state, [:cache, :clear_when_changed], """
+          `clear_when_changed` lists #{inspect(module)}, which is not an Ash resource.
+          """)
+
+        not AshCache.Info.cached?(module) ->
+          error(dsl_state, [:cache, :clear_when_changed], """
+          `clear_when_changed` lists #{inspect(module)}, which does not use AshCache, \
+          so its writes are never seen. Add `extensions: [AshCache.Resource]` to it.
+          """)
+
+        true ->
+          nil
+      end
+    end)
   end
 
   defp error(dsl_state, path, message) do

@@ -21,7 +21,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   @doc false
   def transform(dsl_state) do
-    store = Transformer.get_option(dsl_state, [:cache], :store)
+    # Read through Info so the defaults apply when there is no `cache` block.
+    store = AshCache.Info.cache_store!(dsl_state)
+    clear_when_changed = AshCache.Info.cache_clear_when_changed!(dsl_state)
     entities = Transformer.get_entities(dsl_state, [:cache])
     warm_specs = Enum.filter(entities, &match?(%AshCache.Warm{}, &1))
 
@@ -39,7 +41,8 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
             store: store,
             ttl: read.ttl,
             cache_empty?: read.cache_empty?,
-            adapter_options: read.adapter_options
+            adapter_options: read.adapter_options,
+            clear_when_changed: clear_when_changed
           ]
 
           attach_preparation(dsl_state, action, read_opts)

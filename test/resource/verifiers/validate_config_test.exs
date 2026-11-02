@@ -42,11 +42,35 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
     assert Exception.message(error) =~ "warm :get_by_name"
   end
 
-  test "rejects a cache block with no read entities" do
-    state = without_read_entities(CachedWidget.spark_dsl_config())
+  test "accepts a resource that caches nothing, so others can list it in clear_when_changed" do
+    assert ValidateConfig.verify(AshCache.Test.Comment.spark_dsl_config()) == :ok
+  end
 
-    assert {:error, error} = ValidateConfig.verify(state)
-    assert Exception.message(error) =~ "at least one `read`"
+  test "accepts clear_when_changed naming resources that use AshCache" do
+    assert ValidateConfig.verify(AshCache.Test.Post.spark_dsl_config()) == :ok
+  end
+
+  defp clearing_when_changed(modules) do
+    Transformer.set_option(
+      CachedWidget.spark_dsl_config(),
+      [:cache],
+      :clear_when_changed,
+      modules
+    )
+  end
+
+  test "rejects clear_when_changed naming a module that is not an Ash resource" do
+    assert {:error, error} = ValidateConfig.verify(clearing_when_changed([String]))
+    assert Exception.message(error) =~ "String"
+    assert Exception.message(error) =~ "not an Ash resource"
+  end
+
+  test "rejects clear_when_changed naming a resource without the AshCache extension" do
+    assert {:error, error} =
+             ValidateConfig.verify(clearing_when_changed([AshCache.Test.Widget]))
+
+    assert Exception.message(error) =~ "AshCache.Test.Widget"
+    assert Exception.message(error) =~ "extensions: [AshCache.Resource]"
   end
 
   test "rejects a read that is not a read action" do

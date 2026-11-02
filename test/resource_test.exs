@@ -6,11 +6,12 @@ defmodule AshCache.ResourceTest do
     assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
   end
 
-  test "the section only carries the store" do
+  test "the section carries the store and the resources that clear it" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
-    assert Keyword.keys(section.schema) == [:store]
+    assert Keyword.keys(section.schema) == [:store, :clear_when_changed]
+    assert section.schema[:clear_when_changed][:default] == []
     assert section.schema[:store][:default] == :ash_cache
     assert Enum.map(section.entities, & &1.name) == [:read, :warm]
   end
