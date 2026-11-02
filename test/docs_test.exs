@@ -19,6 +19,7 @@ defmodule AshCache.DocsTest do
     AshCache.Store
     AshCache.Store.Adapter
     AshCache.Store.Adapters.Cachex
+    AshCache.Store.Adapters.Nebulex
     AshCache.Store.Adapters.Noop
     AshCache.Store.Adapters.ProcessLocal
     AshCache.Supervisor

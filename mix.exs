@@ -22,7 +22,7 @@ defmodule AshCache.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [extra_applications: [:logger, :crypto]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -34,6 +34,11 @@ defmodule AshCache.MixProject do
       {:spark, "~> 2.3"},
       {:cachex, "~> 3.6"},
       {:telemetry, "~> 1.2"},
+      # Only for `AshCache.Store.Adapters.Nebulex`; apps that use it add
+      # Nebulex and the adapters they want themselves.
+      {:nebulex, "~> 3.1", optional: true},
+      {:nebulex_local, "~> 3.1", only: :test},
+      {:nebulex_distributed, "~> 3.3", only: :test},
       # Ash needs a SAT solver to evaluate policies; the suite has resources
       # with policies, so it is a test-only dependency here rather than
       # something this package imposes on its users.
@@ -85,6 +90,7 @@ defmodule AshCache.MixProject do
           AshCache.Store,
           AshCache.Store.Adapter,
           AshCache.Store.Adapters.Cachex,
+          AshCache.Store.Adapters.Nebulex,
           AshCache.Store.Adapters.ProcessLocal,
           AshCache.Store.Adapters.Noop
         ]
