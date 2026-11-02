@@ -25,7 +25,7 @@ defmodule AshCache.Preparations.ReadThrough do
 
   use Ash.Resource.Preparation
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Key
   alias AshCache.Store
 
@@ -74,7 +74,7 @@ defmodule AshCache.Preparations.ReadThrough do
   end
 
   defp build_key(query, store, context) do
-    generation = Generation.current(store, query.resource)
+    version = CacheVersion.current(store, query.resource)
 
     # The actor is read from the query at hook time: one passed only to
     # `Ash.read/2` is applied after preparations run, so the preparation
@@ -96,7 +96,7 @@ defmodule AshCache.Preparations.ReadThrough do
       load: query.load
     }
 
-    Key.build(query.resource, query.action.name, query_shape, generation,
+    Key.build(query.resource, query.action.name, query_shape, version,
       actor: actor_of(query, context),
       tenant: query.tenant
     )
@@ -112,7 +112,7 @@ defmodule AshCache.Preparations.ReadThrough do
   defp cache_after_read(query, store, key, opts) do
     ttl = Keyword.fetch!(opts, :ttl)
     cache_empty? = Keyword.get(opts, :cache_empty?, false)
-    store_opts = Keyword.put(Keyword.get(opts, :adapter_options, []), :ttl, ttl)
+    store_opts = Keyword.put(Keyword.get(opts, :store_options, []), :ttl, ttl)
 
     Ash.Query.after_action(query, fn _query, records ->
       if cacheable?(records, cache_empty?) do

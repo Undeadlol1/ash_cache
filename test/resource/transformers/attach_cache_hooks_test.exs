@@ -60,7 +60,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
         assert opts[:store] == :ash_cache
         assert opts[:ttl] == to_timeout(hour: 1)
         assert opts[:cache_empty?] == false
-        assert opts[:adapter_options] == []
+        assert opts[:store_options] == []
       end
     end
 

@@ -1,7 +1,7 @@
 defmodule AshCache.Preparations.ReadThroughTest do
   use ExUnit.Case, async: true
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Preparations.ReadThrough
   alias AshCache.Test.Widget
 
@@ -145,11 +145,11 @@ defmodule AshCache.Preparations.ReadThroughTest do
              nil
   end
 
-  test "bumping the generation turns hits back into misses", %{store: store, opts: opts} do
+  test "bumping the cache version turns hits back into misses", %{store: store, opts: opts} do
     prepared = prepare_and_run(query_for("a"), opts, %{})
     :ok = complete_read(prepared, [%{name: "a"}])
 
-    :ok = Generation.bump(store, Widget)
+    :ok = CacheVersion.bump(store, Widget)
 
     assert answer_from_cache(prepare_and_run(query_for("a"), opts, %{})) == nil
   end

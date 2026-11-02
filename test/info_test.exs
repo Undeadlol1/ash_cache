@@ -12,7 +12,7 @@ defmodule AshCache.InfoTest do
 
     assert Enum.map(reads, & &1.name) == [:read, :get_by_name, :paged]
     assert Enum.all?(reads, &(&1.ttl == to_timeout(hour: 1)))
-    assert Enum.all?(reads, &(&1.cache_empty? == false and &1.adapter_options == []))
+    assert Enum.all?(reads, &(&1.cache_empty? == false and &1.store_options == []))
   end
 
   test "overrides are reported as declared" do

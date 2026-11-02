@@ -7,20 +7,20 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   @behaviour AshCache.Store.Adapter
 
   @tracked_keys_prefix :ash_cache_keys
-  @pinned_keys_prefix :ash_cache_pinned_keys
+  @never_evicted_keys_prefix :ash_cache_never_evicted_keys
   @entry_prefix :ash_cache_entry
 
-  # Generation-based invalidation strands old entries: nothing reads them
+  # Version-based invalidation strands old entries: nothing reads them
   # again, so their TTL is never checked and they accumulate for the life of
   # the process, slowing every process-dictionary walk. Overflowing the
   # bound resets the store — a burst of misses, never stale data.
   #
-  # "Never stale data" only holds because `pin: true` entries are exempt from
-  # the bound. The one such entry is the resource's generation counter: reset
-  # it and `AshCache.Generation.current/2` self-heals to zero, which is not a
-  # miss but a rollback — every key written under an earlier generation becomes
+  # "Never stale data" only holds because `never_evict: true` entries are exempt from
+  # the bound. The one such entry is the resource's version counter: reset
+  # it and `AshCache.CacheVersion.current/2` self-heals to zero, which is not a
+  # miss but a rollback — every key written under an earlier cache version becomes
   # reachable again. Dead result sets are what the bound is for, and none of
-  # those are pinned.
+  # those are marked never-evict.
   #
   # The bound is therefore how much dead weight every write-heavy test drags
   # through garbage collection, and an entry is a whole result set keyed by a
@@ -28,7 +28,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   # write-heavy test in the application this was extracted from ran 36s, of
   # which 20s vanished when the bound came down to 32. A test process needs a
   # working set, not a history, and no test here reads anywhere near 32
-  # distinct cached queries inside one generation.
+  # distinct cached queries inside one cache version.
   @max_entries_per_store 32
 
   @doc false
@@ -66,7 +66,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
       end
 
     Process.put(entry_key(store, key), {value, expires_at_ms})
-    track_key(store, key, Keyword.get(opts, :pin, false))
+    track_key(store, key, Keyword.get(opts, :never_evict, false))
     :ok
   end
 
@@ -79,11 +79,11 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   @impl true
   def clear(store) do
     drop_tracked_entries(store)
-    drop_entries(store, pinned_keys(store), pinned_keys_key(store))
+    drop_entries(store, never_evicted_keys(store), never_evicted_keys_key(store))
   end
 
   defp track_key(store, key, true) do
-    Process.put(pinned_keys_key(store), MapSet.put(pinned_keys(store), key))
+    Process.put(never_evicted_keys_key(store), MapSet.put(never_evicted_keys(store), key))
   end
 
   defp track_key(store, key, false) do
@@ -111,7 +111,7 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
 
   defp delete_entry(store, key) do
     Process.delete(entry_key(store, key))
-    Process.put(pinned_keys_key(store), MapSet.delete(pinned_keys(store), key))
+    Process.put(never_evicted_keys_key(store), MapSet.delete(never_evicted_keys(store), key))
 
     remaining = MapSet.delete(tracked_keys(store), key)
 
@@ -126,10 +126,10 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
 
   defp tracked_keys(store), do: Process.get(tracked_keys_key(store), MapSet.new())
 
-  defp pinned_keys(store), do: Process.get(pinned_keys_key(store), MapSet.new())
+  defp never_evicted_keys(store), do: Process.get(never_evicted_keys_key(store), MapSet.new())
 
   defp tracked_keys_key(store), do: {@tracked_keys_prefix, store}
-  defp pinned_keys_key(store), do: {@pinned_keys_prefix, store}
+  defp never_evicted_keys_key(store), do: {@never_evicted_keys_prefix, store}
   defp entry_key(store, key), do: {@entry_prefix, store, key}
 
   defp now_ms, do: System.monotonic_time(:millisecond)

@@ -1,7 +1,7 @@
 defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
   @moduledoc """
   Rejects a `cache` block that caches nothing, names an action that is not a
-  read action, declares the same read twice, or warms a read it does not cache.
+  read action, declares the same read twice, or refreshes a read it does not cache.
   A typo in any of these would silently cache nothing.
   """
 
@@ -14,12 +14,12 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
   def verify(dsl_state) do
     entities = Verifier.get_entities(dsl_state, [:cache])
     reads = for %AshCache.CachedRead{name: name} <- entities, do: name
-    warms = for %AshCache.Warm{read: read} <- entities, do: read
+    refreshes = for %AshCache.Refresh{read: read} <- entities, do: read
 
     with :ok <- verify_any_read(dsl_state, reads),
          :ok <- verify_read_actions(dsl_state, reads),
          :ok <- verify_reads_unique(dsl_state, reads) do
-      verify_warms(dsl_state, reads, warms)
+      verify_refreshes(dsl_state, reads, refreshes)
     end
   end
 
@@ -61,14 +61,14 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
     end
   end
 
-  defp verify_warms(dsl_state, reads, warms) do
-    case Enum.reject(warms, &(&1 in reads)) do
+  defp verify_refreshes(dsl_state, reads, refreshes) do
+    case Enum.reject(refreshes, &(&1 in reads)) do
       [] ->
         :ok
 
       [uncached | _rest] ->
-        dsl_error(dsl_state, [:cache, :warm], """
-        `warm #{inspect(uncached)}` names an action that is not a cached read on this resource.
+        dsl_error(dsl_state, [:cache, :refresh], """
+        `refresh #{inspect(uncached)}` names an action that is not a cached read on this resource.
         Cached read actions: #{inspect(Enum.sort(reads))}.
         """)
     end

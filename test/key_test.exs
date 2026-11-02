@@ -83,7 +83,7 @@ defmodule AshCache.KeyTest do
                Key.build(FakeResource, :list, %{}, 0, [])
     end
 
-    test "different generations produce different keys" do
+    test "different cache versions produce different keys" do
       refute Key.build(FakeResource, :read, %{}, 0, []) ==
                Key.build(FakeResource, :read, %{}, 1, [])
     end

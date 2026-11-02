@@ -4,7 +4,7 @@ defmodule AshCache.Store.Adapters.Cachex do
   `AshCache.Supervisor`.
 
   Entries are shared by every process on the node and expire by TTL. It
-  enforces no entry bound of its own, so `:pin` means nothing here.
+  enforces no entry bound of its own, so `:never_evict` means nothing here.
   """
 
   @behaviour AshCache.Store.Adapter
@@ -14,9 +14,9 @@ defmodule AshCache.Store.Adapters.Cachex do
 
   @impl true
   def put(store, key, value, opts) do
-    # `:pin` is meaningless here — this store has no entry bound to be
+    # `:never_evict` is meaningless here — this store has no entry bound to be
     # exempt from — and Cachex is not asked to make sense of it.
-    case Cachex.put(store, key, value, Keyword.delete(opts, :pin)) do
+    case Cachex.put(store, key, value, Keyword.delete(opts, :never_evict)) do
       {:ok, true} -> :ok
       {:error, reason} -> {:error, reason}
     end

@@ -23,15 +23,15 @@ defmodule AshCache.Supervisor do
     children =
       opts
       |> configured_domains()
-      |> stores()
+      |> store_names()
       |> Enum.map(&store_child/1)
 
     Supervisor.init(children, strategy: :one_for_one)
   end
 
   @doc "The distinct store names declared by the given domains' cached resources."
-  @spec stores([module()]) :: [atom()]
-  def stores(domains) do
+  @spec store_names([module()]) :: [atom()]
+  def store_names(domains) do
     domains
     |> Enum.flat_map(&Ash.Domain.Info.resources/1)
     |> Enum.filter(&AshCache.Info.cached?/1)

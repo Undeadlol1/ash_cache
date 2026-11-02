@@ -6,7 +6,7 @@ defmodule AshCache.Test.GatedCounterReadAdapter do
   alias AshCache.Store.Adapters.Cachex, as: CachexAdapter
 
   @impl true
-  def get(store, {:ash_cache_generation, _resource} = key) do
+  def get(store, {:ash_cache_version, _resource} = key) do
     counter = CachexAdapter.get(store, key)
 
     case Process.get(:gate_owner) do

@@ -30,7 +30,7 @@ Which reads to cache, where, and for how long.
 
 ### Nested DSLs
  * [read](#cache-read)
- * [warm](#cache-warm)
+ * [refresh](#cache-refresh)
 
 
 
@@ -68,7 +68,7 @@ Cache this read action, with its own lifetime and settings.
 |------|------|---------|------|
 | [`ttl`](#cache-read-ttl){: #cache-read-ttl } | `pos_integer \| :infinity` |  | Milliseconds a cached entry of this read lives before it expires, or `:infinity` to never expire. Defaults to the `cache` block's `ttl`. |
 | [`cache_empty?`](#cache-read-cache_empty?){: #cache-read-cache_empty? } | `boolean` | `false` | Whether empty results ([] or nil) are cached. Off by default. |
-| [`adapter_options`](#cache-read-adapter_options){: #cache-read-adapter_options } | `keyword` | `[]` | Options passed verbatim to the store adapter's put/4. Couples the resource to that adapter. |
+| [`store_options`](#cache-read-store_options){: #cache-read-store_options } | `keyword` | `[]` | Options passed verbatim to the store adapter's put/4. Couples the resource to that adapter. |
 
 
 
@@ -78,14 +78,14 @@ Cache this read action, with its own lifetime and settings.
 
 Target: `AshCache.CachedRead`
 
-### cache.warm
+### cache.refresh
 ```elixir
-warm read
+refresh read
 ```
 
 
 Re-run a read after every successful create/update so the fresh value is
-cached immediately (write-through), e.g. `warm :get_by_key, args: [key: :key]`.
+cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: :key]`.
 
 
 
@@ -96,13 +96,13 @@ cached immediately (write-through), e.g. `warm :get_by_key, args: [key: :key]`.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`read`](#cache-warm-read){: #cache-warm-read .spark-required} | `atom` |  | The cached read action to warm. |
+| [`read`](#cache-refresh-read){: #cache-refresh-read .spark-required} | `atom` |  | The cached read action to refresh. |
 ### Options
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`args`](#cache-warm-args){: #cache-warm-args } | `keyword` | `[]` | Read arguments as `argument_name: record_attribute` pairs. |
-| [`actor`](#cache-warm-actor){: #cache-warm-actor } | `nil \| mfa` |  | MFA returning the actor to warm as. Warmed entries are cached under this actor's key, so it must match how the read is normally called. |
+| [`arguments`](#cache-refresh-arguments){: #cache-refresh-arguments } | `keyword` | `[]` | Read arguments as `argument_name: record_attribute` pairs. |
+| [`actor`](#cache-refresh-actor){: #cache-refresh-actor } | `nil \| mfa` |  | MFA returning the actor to refresh as. Refreshed entries are cached under this actor's key, so it must match how the read is normally called. |
 
 
 
@@ -110,7 +110,7 @@ cached immediately (write-through), e.g. `warm :get_by_key, args: [key: :key]`.
 
 ### Introspection
 
-Target: `AshCache.Warm`
+Target: `AshCache.Refresh`
 
 
 

@@ -29,20 +29,20 @@ defmodule AshCache.Resource do
     args: [:name],
     schema: AshCache.CachedRead.schema()
   }
-  @warm %Spark.Dsl.Entity{
-    name: :warm,
+  @refresh %Spark.Dsl.Entity{
+    name: :refresh,
     describe: """
     Re-run a read after every successful create/update so the fresh value is
-    cached immediately (write-through), e.g. `warm :get_by_key, args: [key: :key]`.
+    cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: :key]`.
     """,
-    target: AshCache.Warm,
+    target: AshCache.Refresh,
     args: [:read],
-    schema: AshCache.Warm.schema()
+    schema: AshCache.Refresh.schema()
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
     describe: "Which reads to cache, where, and for how long.",
-    entities: [@read, @warm],
+    entities: [@read, @refresh],
     schema: [
       store: [
         type: :atom,

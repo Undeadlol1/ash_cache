@@ -1,7 +1,7 @@
-defmodule AshCache.GenerationTest do
+defmodule AshCache.CacheVersionTest do
   use ExUnit.Case, async: true
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Store.Adapters.ProcessLocal
   alias AshCache.Test.StoreContract
 
@@ -28,36 +28,36 @@ defmodule AshCache.GenerationTest do
   end
 
   setup do
-    {:ok, store: :"generation_store_#{System.unique_integer([:positive])}"}
+    {:ok, store: :"cache_version_store_#{System.unique_integer([:positive])}"}
   end
 
   test "starts at zero for an unknown resource", %{store: store} do
-    assert Generation.current(store, SomeResource) == 0
+    assert CacheVersion.current(store, SomeResource) == 0
   end
 
-  test "each bump changes the generation to a value never seen before", %{store: store} do
-    seen_generations = [Generation.current(store, SomeResource)]
+  test "each bump changes the cache version to a value never seen before", %{store: store} do
+    seen_versions = [CacheVersion.current(store, SomeResource)]
 
-    assert :ok = Generation.bump(store, SomeResource)
-    first_generation = Generation.current(store, SomeResource)
-    refute first_generation in seen_generations
+    assert :ok = CacheVersion.bump(store, SomeResource)
+    first_version = CacheVersion.current(store, SomeResource)
+    refute first_version in seen_versions
 
-    assert :ok = Generation.bump(store, SomeResource)
-    refute Generation.current(store, SomeResource) in [first_generation | seen_generations]
+    assert :ok = CacheVersion.bump(store, SomeResource)
+    refute CacheVersion.current(store, SomeResource) in [first_version | seen_versions]
   end
 
-  test "resources have independent generations", %{store: store} do
-    :ok = Generation.bump(store, SomeResource)
+  test "resources have independent cache versions", %{store: store} do
+    :ok = CacheVersion.bump(store, SomeResource)
 
-    refute Generation.current(store, SomeResource) == 0
-    assert Generation.current(store, OtherResource) == 0
+    refute CacheVersion.current(store, SomeResource) == 0
+    assert CacheVersion.current(store, OtherResource) == 0
   end
 
   test "a lost counter self-heals to zero", %{store: store} do
-    :ok = Generation.bump(store, SomeResource)
+    :ok = CacheVersion.bump(store, SomeResource)
     :ok = AshCache.Store.clear(store)
 
-    assert Generation.current(store, SomeResource) == 0
+    assert CacheVersion.current(store, SomeResource) == 0
   end
 
   describe "when the store itself is unhealthy, where healing to zero would be a rollback" do
@@ -69,17 +69,18 @@ defmodule AshCache.GenerationTest do
     end
 
     test "an errored read does not answer zero", %{store: store} do
-      refute Generation.current(store, SomeResource) == 0
+      refute CacheVersion.current(store, SomeResource) == 0
     end
 
     test "no two errored reads agree, so every pre-error key stays unreachable", %{store: store} do
-      refute Generation.current(store, SomeResource) == Generation.current(store, SomeResource)
+      refute CacheVersion.current(store, SomeResource) ==
+               CacheVersion.current(store, SomeResource)
     end
   end
 
   describe "against the production Cachex adapter, where a rejected unbounded TTL would silently disable invalidation" do
     setup do
-      store = :"generation_cachex_#{System.unique_integer([:positive])}"
+      store = :"cache_version_cachex_#{System.unique_integer([:positive])}"
       start_supervised!(%{id: store, start: {Cachex, :start_link, [store, []]}})
 
       previous_adapter = Process.get(:ash_cache_adapter)
@@ -89,17 +90,17 @@ defmodule AshCache.GenerationTest do
       {:ok, store: store}
     end
 
-    test "bump succeeds and changes the generation each time", %{store: store} do
-      assert :ok = Generation.bump(store, SomeResource)
-      first_generation = Generation.current(store, SomeResource)
-      refute first_generation == 0
+    test "bump succeeds and changes the cache version each time", %{store: store} do
+      assert :ok = CacheVersion.bump(store, SomeResource)
+      first_version = CacheVersion.current(store, SomeResource)
+      refute first_version == 0
 
-      assert :ok = Generation.bump(store, SomeResource)
-      refute Generation.current(store, SomeResource) in [0, first_generation]
+      assert :ok = CacheVersion.bump(store, SomeResource)
+      refute CacheVersion.current(store, SomeResource) in [0, first_version]
     end
 
     test "the counter outlives ordinary cached entries", %{store: store} do
-      :ok = Generation.bump(store, SomeResource)
+      :ok = CacheVersion.bump(store, SomeResource)
       :ok = AshCache.Store.put(store, :short_lived, "value", ttl: 1)
 
       assert :ok =
@@ -107,13 +108,13 @@ defmodule AshCache.GenerationTest do
                  AshCache.Store.get(store, :short_lived) == {:ok, nil}
                end)
 
-      refute Generation.current(store, SomeResource) == 0
+      refute CacheVersion.current(store, SomeResource) == 0
     end
   end
 
   describe "two writes committing concurrently" do
     setup do
-      store = :"generation_race_#{System.unique_integer([:positive])}"
+      store = :"cache_version_race_#{System.unique_integer([:positive])}"
       start_supervised!(%{id: store, start: {Cachex, :start_link, [store, []]}})
 
       previous_adapter = Process.get(:ash_cache_adapter)
@@ -123,8 +124,8 @@ defmodule AshCache.GenerationTest do
       {:ok, store: store}
     end
 
-    test "never leave the generation a reader could already have cached under", %{store: store} do
-      before_either = Generation.current(store, SomeResource)
+    test "never leave the cache version a reader could already have cached under", %{store: store} do
+      before_either = CacheVersion.current(store, SomeResource)
       first = start_bump(store)
       second = start_bump(store)
 
@@ -143,21 +144,21 @@ defmodule AshCache.GenerationTest do
         Task.async(fn ->
           Process.put(:ash_cache_adapter, AshCache.Test.GatedCounterReadAdapter)
           Process.put(:gate_owner, owner)
-          Generation.bump(store, SomeResource)
+          CacheVersion.bump(store, SomeResource)
         end)
 
       receive do
         {:read_counter, pid, _value} when pid == task.pid -> {:blocked, task, store}
-        {ref, :ok} when ref == task.ref -> {:done, Generation.current(store, SomeResource)}
+        {ref, :ok} when ref == task.ref -> {:done, CacheVersion.current(store, SomeResource)}
       end
     end
 
-    defp finish_bump({:done, generation}), do: generation
+    defp finish_bump({:done, version}), do: version
 
     defp finish_bump({:blocked, task, store}) do
       send(task.pid, :proceed)
       assert :ok = Task.await(task)
-      Generation.current(store, SomeResource)
+      CacheVersion.current(store, SomeResource)
     end
   end
 
@@ -169,13 +170,13 @@ defmodule AshCache.GenerationTest do
     end
 
     test "the counter survives an overflow of distinct cached query shapes" do
-      assert :ok = Generation.bump(:ash_cache, __MODULE__)
-      generation_before = Generation.current(:ash_cache, __MODULE__)
-      refute generation_before == 0
+      assert :ok = CacheVersion.bump(:ash_cache, __MODULE__)
+      version_before = CacheVersion.current(:ash_cache, __MODULE__)
+      refute version_before == 0
 
       overflow_the_bound_with_distinct_query_shapes()
 
-      assert Generation.current(:ash_cache, __MODULE__) == generation_before
+      assert CacheVersion.current(:ash_cache, __MODULE__) == version_before
     end
 
     defp overflow_the_bound_with_distinct_query_shapes do

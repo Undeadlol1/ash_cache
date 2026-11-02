@@ -2,7 +2,7 @@ defmodule AshCache.Changes.InvalidateCacheTest do
   use ExUnit.Case, async: true
 
   alias AshCache.Changes.InvalidateCache
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Test.Widget
 
   setup do
@@ -28,55 +28,55 @@ defmodule AshCache.Changes.InvalidateCacheTest do
     assert changeset.after_action == []
   end
 
-  test "a committed write bumps the resource generation", %{store: store, opts: opts} do
+  test "a committed write bumps the resource's cache version", %{store: store, opts: opts} do
     changeset = changeset_with_bump(opts)
 
     write_result = {:ok, %{name: "a"}}
     assert complete_transaction(changeset, write_result) == write_result
-    refute Generation.current(store, Widget) == 0
+    refute CacheVersion.current(store, Widget) == 0
   end
 
-  test "a failed write does not bump the generation", %{store: store, opts: opts} do
+  test "a failed write does not bump the cache version", %{store: store, opts: opts} do
     changeset = changeset_with_bump(opts)
 
     write_result = {:error, :boom}
     assert complete_transaction(changeset, write_result) == write_result
-    assert Generation.current(store, Widget) == 0
+    assert CacheVersion.current(store, Widget) == 0
   end
 
-  describe "warming after a write, through real actions" do
+  describe "refreshing after a write, through real actions" do
     alias AshCache.Test.Events
-    alias AshCache.Test.WarmedWidget
+    alias AshCache.Test.RefreshedWidget
 
     setup do
       AshCache.Testing.capture_events()
     end
 
     defp wipe_data_layer! do
-      {:ok, _table} = Ash.DataLayer.Ets.stop(WarmedWidget)
-      Process.delete({:ash_ets_table, WarmedWidget, nil})
+      {:ok, _table} = Ash.DataLayer.Ets.stop(RefreshedWidget)
+      Process.delete({:ash_ets_table, RefreshedWidget, nil})
     end
 
     defp get_by_name!(name) do
-      WarmedWidget
+      RefreshedWidget
       |> Ash.Query.for_read(:get_by_name, %{name: name})
       |> Ash.read!()
     end
 
-    test "a create warms the declared read before anyone asks" do
-      WarmedWidget
-      |> Ash.Changeset.for_create(:create, %{name: "warmed", quantity: 7})
+    test "a create refreshes the declared read before anyone asks" do
+      RefreshedWidget
+      |> Ash.Changeset.for_create(:create, %{name: "refreshed", quantity: 7})
       |> Ash.create!()
 
       wipe_data_layer!()
 
-      assert [%{quantity: 7}] = get_by_name!("warmed")
+      assert [%{quantity: 7}] = get_by_name!("refreshed")
     end
 
-    test "an update warms the read with the fresh value" do
+    test "an update refreshes the read with the fresh value" do
       widget =
-        WarmedWidget
-        |> Ash.Changeset.for_create(:create, %{name: "warmed", quantity: 1})
+        RefreshedWidget
+        |> Ash.Changeset.for_create(:create, %{name: "refreshed", quantity: 1})
         |> Ash.create!()
 
       widget
@@ -85,7 +85,7 @@ defmodule AshCache.Changes.InvalidateCacheTest do
 
       wipe_data_layer!()
 
-      assert [%{quantity: 2}] = get_by_name!("warmed")
+      assert [%{quantity: 2}] = get_by_name!("refreshed")
     end
 
     defmodule ExplodingActor do
@@ -93,38 +93,42 @@ defmodule AshCache.Changes.InvalidateCacheTest do
       def resolve, do: raise("actor resolution blew up")
     end
 
-    defp write_result_after_warming(warm) do
+    defp write_result_after_refreshing(refresh) do
       record = %{name: "resilient", quantity: 3}
 
       changeset =
         Widget
         |> Ash.Changeset.for_create(:create, record)
-        |> InvalidateCache.change([store: :ash_cache, warm: [warm]], %{})
+        |> InvalidateCache.change([store: :ash_cache, refresh: [refresh]], %{})
 
       [hook] = changeset.after_transaction
 
       hook.(changeset, {:ok, record})
     end
 
-    test "a warm that raises does not fail the already-committed write" do
-      exploding_warm = %AshCache.Warm{
+    test "a refresh that raises does not fail the already-committed write" do
+      exploding_refresh = %AshCache.Refresh{
         read: :get_by_name,
-        args: [name: :name],
+        arguments: [name: :name],
         actor: {ExplodingActor, :resolve, []}
       }
 
-      assert {:ok, %{quantity: 3}} = write_result_after_warming(exploding_warm)
+      assert {:ok, %{quantity: 3}} = write_result_after_refreshing(exploding_refresh)
     end
 
-    test "a warm whose read is rejected does not fail the committed write" do
-      unknown_read_warm = %AshCache.Warm{read: :no_such_read, args: [name: :name], actor: nil}
+    test "a refresh whose read is rejected does not fail the committed write" do
+      unknown_read_refresh = %AshCache.Refresh{
+        read: :no_such_read,
+        arguments: [name: :name],
+        actor: nil
+      }
 
-      assert {:ok, %{quantity: 3}} = write_result_after_warming(unknown_read_warm)
+      assert {:ok, %{quantity: 3}} = write_result_after_refreshing(unknown_read_refresh)
     end
 
-    test "a destroy does not warm a read for the dead record" do
+    test "a destroy does not refresh a read for the dead record" do
       widget =
-        WarmedWidget
+        RefreshedWidget
         |> Ash.Changeset.for_create(:create, %{name: "doomed"})
         |> Ash.create!()
 

@@ -7,12 +7,13 @@ defmodule AshCache.DocsTest do
   # these, and publishing a module that was meant to stay internal.
   @published_modules ~w[
     AshCache
+    AshCache.CacheVersion
     AshCache.CachedRead
     AshCache.Changes.InvalidateCache
-    AshCache.Generation
     AshCache.Info
     AshCache.Key
     AshCache.Preparations.ReadThrough
+    AshCache.Refresh
     AshCache.Resource
     AshCache.Resource.Transformers.AttachCacheHooks
     AshCache.Resource.Verifiers.ValidateCacheBlock
@@ -23,7 +24,6 @@ defmodule AshCache.DocsTest do
     AshCache.Store.Adapters.ProcessLocal
     AshCache.Supervisor
     AshCache.Testing
-    AshCache.Warm
   ]
 
   @package_root Path.expand("../lib", __DIR__)

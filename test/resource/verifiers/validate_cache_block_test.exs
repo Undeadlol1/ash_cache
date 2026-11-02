@@ -10,7 +10,7 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlockTest do
   # the module checker, so `assert_raise` around a `defmodule` never sees the
   # error.
 
-  alias AshCache.Test.WarmedWidget
+  alias AshCache.Test.RefreshedWidget
   alias Spark.Dsl.Transformer
 
   defp cached_read(name), do: %AshCache.CachedRead{name: name, ttl: 1000}
@@ -28,18 +28,18 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlockTest do
     assert ValidateCacheBlock.verify(PartiallyCachedWidget.spark_dsl_config()) == :ok
   end
 
-  test "accepts a warm naming a cached read" do
-    assert ValidateCacheBlock.verify(WarmedWidget.spark_dsl_config()) == :ok
+  test "accepts a refresh naming a cached read" do
+    assert ValidateCacheBlock.verify(RefreshedWidget.spark_dsl_config()) == :ok
   end
 
-  test "rejects a warm naming an uncached read" do
+  test "rejects a refresh naming an uncached read" do
     dsl_state =
-      WarmedWidget.spark_dsl_config()
+      RefreshedWidget.spark_dsl_config()
       |> without_cached_reads()
       |> Transformer.add_entity([:cache], cached_read(:read))
 
     assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
-    assert Exception.message(error) =~ "warm :get_by_name"
+    assert Exception.message(error) =~ "refresh :get_by_name"
   end
 
   test "rejects a cache block with no read entries" do

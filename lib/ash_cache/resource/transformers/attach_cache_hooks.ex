@@ -24,7 +24,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     store = Transformer.get_option(dsl_state, [:cache], :store)
     block_ttl = Transformer.get_option(dsl_state, [:cache], :ttl)
     entities = Transformer.get_entities(dsl_state, [:cache])
-    warms = Enum.filter(entities, &match?(%AshCache.Warm{}, &1))
+    refreshes = Enum.filter(entities, &match?(%AshCache.Refresh{}, &1))
 
     cached_reads =
       for %AshCache.CachedRead{} = read <- entities, into: %{}, do: {read.name, read}
@@ -40,13 +40,13 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
             store: store,
             ttl: AshCache.CachedRead.ttl(read, block_ttl),
             cache_empty?: read.cache_empty?,
-            adapter_options: read.adapter_options
+            store_options: read.store_options
           ]
 
           attach_preparation(dsl_state, action, preparation_opts)
 
         action.type in @write_types ->
-          attach_change(dsl_state, action, store, warms)
+          attach_change(dsl_state, action, store, refreshes)
 
         true ->
           dsl_state
@@ -75,11 +75,11 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   defp suppress_primary_read_warning(dsl_state, _action), do: dsl_state
 
-  defp attach_change(dsl_state, action, store, warms) do
+  defp attach_change(dsl_state, action, store, refreshes) do
     change_opts =
-      case warms do
+      case refreshes do
         [] -> [store: store]
-        warms -> [store: store, warm: warms]
+        refreshes -> [store: store, refresh: refreshes]
       end
 
     change =

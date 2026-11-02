@@ -124,9 +124,9 @@ defmodule AshCache.Test.PartiallyCachedWidget do
   widget_actions()
 end
 
-defmodule AshCache.Test.WarmedWidget do
+defmodule AshCache.Test.RefreshedWidget do
   @moduledoc """
-  Warm-after-write case: a successful write re-runs the declared read so the
+  Refresh-after-write case: a successful write re-runs the declared read so the
   fresh value is cached before anyone asks for it.
   """
 
@@ -134,7 +134,7 @@ defmodule AshCache.Test.WarmedWidget do
 
   cache do
     read(:get_by_name, ttl: to_timeout(hour: 1))
-    warm(:get_by_name, args: [name: :name])
+    refresh(:get_by_name, arguments: [name: :name])
   end
 
   widget_attributes()
@@ -314,8 +314,8 @@ defmodule AshCache.Test.TenantWidget do
   end
 end
 
-defmodule AshCache.Test.WarmedTenantWidget do
-  @moduledoc "Warm-after-write case on a multi-tenant resource."
+defmodule AshCache.Test.RefreshedTenantWidget do
+  @moduledoc "Refresh-after-write case on a multi-tenant resource."
 
   use Ash.Resource,
     domain: AshCache.Test.Domain,
@@ -333,7 +333,7 @@ defmodule AshCache.Test.WarmedTenantWidget do
 
   cache do
     read(:get_by_name, ttl: to_timeout(hour: 1))
-    warm(:get_by_name, args: [name: :name])
+    refresh(:get_by_name, arguments: [name: :name])
   end
 
   attributes do
@@ -373,7 +373,7 @@ end
 
 defmodule AshCache.Test.LabelledWidget do
   @moduledoc """
-  Warm-args case: the warmed read's argument (`label`) is named differently
+  Refresh-arguments case: the refreshed read's argument (`label`) is named differently
   from the attribute (`name`) that feeds it.
   """
 
@@ -381,7 +381,7 @@ defmodule AshCache.Test.LabelledWidget do
 
   cache do
     read(:get_by_label, ttl: to_timeout(hour: 1))
-    warm(:get_by_label, args: [label: :name])
+    refresh(:get_by_label, arguments: [label: :name])
   end
 
   widget_attributes()
@@ -409,7 +409,7 @@ defmodule AshCache.Test.Domain do
     end
 
     resource(AshCache.Test.PartiallyCachedWidget)
-    resource(AshCache.Test.WarmedWidget)
+    resource(AshCache.Test.RefreshedWidget)
     resource(AshCache.Test.GuardedWidget)
     resource(AshCache.Test.OwnedWidget)
     resource(AshCache.Test.TwoTtlWidget)
@@ -419,7 +419,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.InfiniteReadWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
-    resource(AshCache.Test.WarmedTenantWidget)
+    resource(AshCache.Test.RefreshedTenantWidget)
     resource(AshCache.Test.MapArgumentWidget)
     resource(AshCache.Test.LabelledWidget)
   end

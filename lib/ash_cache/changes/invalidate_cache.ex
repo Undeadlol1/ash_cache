@@ -1,31 +1,31 @@
 defmodule AshCache.Changes.InvalidateCache do
   @moduledoc """
   Invalidates a resource's cached reads after a successful write by bumping
-  the resource's cache generation (see `AshCache.Generation`).
+  the resource's cache version (see `AshCache.CacheVersion`).
 
   The bump runs in `after_transaction`, never `after_action`: a write that
   rolls back must leave the cache untouched, and reads running concurrently
-  with the transaction keep caching under the old generation — harmless,
+  with the transaction keep caching under the old cache version — harmless,
   because the bump after commit makes those entries unreachable.
   """
 
   use Ash.Resource.Change
 
-  alias AshCache.Generation
-  alias AshCache.Warm
+  alias AshCache.CacheVersion
+  alias AshCache.Refresh
 
   require Logger
 
   @impl true
   def change(changeset, opts, _context) do
     store = Keyword.fetch!(opts, :store)
-    warms = Keyword.get(opts, :warm, [])
+    refreshes = Keyword.get(opts, :refresh, [])
 
     Ash.Changeset.after_transaction(changeset, fn changeset, result ->
       case result do
         {:ok, record} ->
-          Generation.bump(store, changeset.resource)
-          warm_reads(changeset, record, warms)
+          CacheVersion.bump(store, changeset.resource)
+          refresh_reads(changeset, record, refreshes)
 
         _error ->
           :noop
@@ -35,28 +35,34 @@ defmodule AshCache.Changes.InvalidateCache do
     end)
   end
 
-  defp warm_reads(%{action: %{type: :destroy}}, _record, _warms), do: :ok
+  defp refresh_reads(%{action: %{type: :destroy}}, _record, _refreshes), do: :ok
 
-  defp warm_reads(changeset, record, warms) do
-    Enum.each(warms, fn warm ->
-      case run_warm(changeset.resource, changeset.tenant, record, warm) do
-        {:error, reason} -> log_warm_failure(changeset.resource, warm, reason)
-        _warmed -> :ok
+  defp refresh_reads(changeset, record, refreshes) do
+    Enum.each(refreshes, fn refresh ->
+      case run_refresh(changeset.resource, changeset.tenant, record, refresh) do
+        {:error, reason} -> log_refresh_failure(changeset.resource, refresh, reason)
+        _refreshed -> :ok
       end
     end)
   end
 
   # The write has already committed, so this is nobody's failure to handle —
-  # but a warm that keeps failing should be visible as more than latency.
-  defp log_warm_failure(resource, %Warm{read: read}, reason) do
-    Logger.warning("AshCache could not warm #{inspect(resource)}.#{read}: #{inspect(reason)}")
+  # but a refresh that keeps failing should be visible as more than latency.
+  defp log_refresh_failure(resource, %Refresh{read: read}, reason) do
+    Logger.warning("AshCache could not refresh #{inspect(resource)}.#{read}: #{inspect(reason)}")
   end
 
-  defp run_warm(resource, tenant, record, %Warm{read: read, args: args, actor: actor_mfa}) do
-    actor = warm_actor(actor_mfa)
+  defp run_refresh(resource, tenant, record, %Refresh{
+         read: read,
+         arguments: argument_attributes,
+         actor: actor_mfa
+       }) do
+    actor = refresh_actor(actor_mfa)
 
     arguments =
-      Map.new(args, fn {argument, attribute} -> {argument, Map.get(record, attribute)} end)
+      Map.new(argument_attributes, fn {argument, attribute} ->
+        {argument, Map.get(record, attribute)}
+      end)
 
     resource
     |> Ash.Query.for_read(read, arguments, actor: actor, tenant: tenant)
@@ -67,8 +73,8 @@ defmodule AshCache.Changes.InvalidateCache do
     kind, reason -> {:error, {kind, reason}}
   end
 
-  defp warm_actor(nil), do: nil
-  defp warm_actor({module, function, args}), do: apply(module, function, args)
+  defp refresh_actor(nil), do: nil
+  defp refresh_actor({module, function, args}), do: apply(module, function, args)
 
   # The change only registers an after_transaction hook, so it is safe under
   # atomic updates (Ash 3 defaults update actions to require_atomic? true).

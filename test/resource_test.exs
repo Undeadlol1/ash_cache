@@ -13,7 +13,7 @@ defmodule AshCache.ResourceTest do
     assert Keyword.keys(section.schema) == [:store, :ttl]
     assert section.schema[:ttl][:default] == 300_000
     assert section.schema[:store][:default] == :ash_cache
-    assert Enum.map(section.entities, & &1.name) == [:read, :warm]
+    assert Enum.map(section.entities, & &1.name) == [:read, :refresh]
   end
 
   test "a read entry has an optional ttl and defaults the rest" do
@@ -25,7 +25,7 @@ defmodule AshCache.ResourceTest do
     refute read.schema[:ttl][:required]
     refute Keyword.has_key?(read.schema[:ttl], :default)
     assert read.schema[:cache_empty?][:default] == false
-    assert read.schema[:adapter_options][:default] == []
+    assert read.schema[:store_options][:default] == []
   end
 
   test "a read without a ttl compiles" do
