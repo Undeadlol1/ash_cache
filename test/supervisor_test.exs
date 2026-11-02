@@ -33,4 +33,14 @@ defmodule AshCache.SupervisorTest do
     assert {:ok, true} = Cachex.put(:ash_cache, :probe, 1)
     assert Process.alive?(pid)
   end
+
+  test "the default store without Cachex fails with a plain message" do
+    assert_raise ArgumentError, ~r/default store needs Cachex.*adapter: YourAdapter/, fn ->
+      AshCache.Supervisor.ensure_store_available!(AshCache.Store.Adapters.Cachex, false)
+    end
+  end
+
+  test "another adapter does not need Cachex" do
+    assert :ok = AshCache.Supervisor.ensure_store_available!(SomeAdapter, false)
+  end
 end

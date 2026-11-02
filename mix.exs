@@ -32,7 +32,7 @@ defmodule AshCache.MixProject do
     [
       {:ash, "~> 3.32"},
       {:spark, "~> 2.3"},
-      {:cachex, "~> 3.6"},
+      {:cachex, "~> 3.6", optional: true},
       {:telemetry, "~> 1.2"},
       # Only for `AshCache.Store.Adapters.Nebulex`; apps that use it add
       # Nebulex and the adapters they want themselves.
