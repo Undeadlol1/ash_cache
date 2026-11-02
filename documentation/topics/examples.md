@@ -4,6 +4,9 @@ Each section below is a feature you might have in your app, with the
 `cache` block for it and why it is set up that way. Every option is listed
 in the [DSL reference](../dsls/DSL-AshCache.Resource.md).
 
+Each example sets `ttl` on purpose. A read without one keeps its results
+for 5 minutes, or for the `cache` block's `ttl` if you set one.
+
 Two things apply to every example:
 
 - A cached result is thrown away when the resource is changed through Ash,

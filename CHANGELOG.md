@@ -6,7 +6,9 @@ First packaged release. Extracted from the application it was written in,
 where it caches two production resources.
 
 - `AshCache.Resource` extension. Each read to cache is listed on its own
-  with a required lifetime: `read :get_by_sku, ttl: :timer.hours(1)`.
+  with an optional lifetime: `read :get_by_sku, ttl: :timer.hours(1)`.
+  Reads without one use the block's `ttl`, which is 5 minutes unless set.
+  `:infinity` is allowed, but only when written out.
   `cache_empty?` and `adapter_options` are set per read too. Reads that are
   not listed are never cached. Keys are built from the action, the whole
   query, the actor and the tenant.

@@ -28,15 +28,18 @@ when a requirement demands them.
   end
   ```
 
-- `ttl` (milliseconds) is required on every `read`; there is no
-  block-level `ttl` and no way to cache all reads at once. Unlisted reads are
-  never cached. Every name must be a read action on the resource, listed once, or
+- `ttl` (milliseconds or `:infinity`) is optional on each `read`. Without it
+  the read uses the block's `ttl`, which defaults to 5 minutes
+  (`cache do ttl :timer.hours(1) ... end` changes it for the resource).
+  `:infinity` is never the default: old entries stay in memory until their
+  `ttl` runs out, so only use it for data that is written rarely. There is
+  no way to cache all reads at once. Unlisted reads are never cached. Every name must be a read action on the resource, listed once, or
   compilation fails. A `cache` block with no `read` fails too.
 - Options on `read`: `cache_empty?: true` caches `[]` and `nil` results (off
   by default); `adapter_options: [...]` is passed verbatim to the adapter's
   `put/4`.
 - Options on the block: `store :name` gives the resource its own Cachex store
-  (default `:ash_cache`).
+  (default `:ash_cache`); `ttl` sets the lifetime for reads without their own.
 - `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`
   re-runs a cached read after each create/update with arguments taken from
   the written record. The entry is cached for that actor only (no actor by
