@@ -23,7 +23,7 @@ Set `cache_empty?: true` on the `read` to save them anyway.
 A key is built from:
 
 1. the resource,
-2. the resource's current **version number** (explained below),
+2. the resource's current **version value** (explained below),
 3. the name of the read action,
 4. everything about the query that affects its result: arguments, filter,
    sort, limit, offset, page, distinct, select and load,
@@ -101,12 +101,12 @@ In order from smallest to largest:
 ## Limits
 
 - **Related records can go stale.** `load` is part of the key, so an entry
-  can contain related records. Version numbers are per resource, though.
-  A write to the related resource bumps its own number, not the parent's,
+  can contain related records. Version values are per resource, though.
+  A write to the related resource changes its own version, not the parent's,
   so the parent entry keeps serving the old related records until it
   expires. Keep `load` off cached reads, or treat `ttl` as how stale that
   data may get.
-- **Writes get slower.** Every write bumps a number in the cache. In one
+- **Writes get slower.** Every write stores a new value in the cache. In one
   write-heavy test suite, caching the resource roughly doubled the suite's
   runtime. Measure before caching a resource that is written to constantly.
 - **No clearing per record.** See "On a write" above.
