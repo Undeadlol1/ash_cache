@@ -66,9 +66,9 @@ when a requirement demands them.
 - Do not cache a write-heavy resource without measuring: every write also
   writes a new version value to the store.
 - Do not write cache keys or invalidation by hand. Both are automatic.
-- To skip the cache for one query, pass `context: %{ash_cache: :bypass}` to
-  `Ash.Query.for_read/4` or `Ash.read/2`. Setting it with `set_context`
-  after `for_read` has no effect.
+- To skip the cache for one query, set `context: %{ash_cache: :bypass}`.
+  Pass it to `Ash.Query.for_read/4` or `Ash.read/2`, or call
+  `Ash.Query.set_context/2` before you run the query.
 - To invalidate a resource at runtime (e.g. after a raw SQL import):
   `AshCache.invalidate(Resource)`.
 - To wipe a whole store (all resources in it): `AshCache.clear_store(:name)`.

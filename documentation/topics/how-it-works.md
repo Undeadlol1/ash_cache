@@ -92,7 +92,8 @@ In order from smallest to largest:
 1. **Options in the `cache` block.** See the
    [DSL reference](../dsls/DSL-AshCache.Resource.md).
 2. **Skip the cache for one query.** Pass `context: %{ash_cache: :bypass}`
-   when you build or run the read. It reads from the database and saves
+   when you build the query, or add it with `Ash.Query.set_context/2` before
+   the query runs. It reads from the database and saves
    nothing.
 3. **Clear by hand.** `AshCache.invalidate(resource)` does what a write
    does. `AshCache.clear_store(store)` empties a whole store.

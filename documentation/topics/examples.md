@@ -205,9 +205,8 @@ MyApp.Shop.Product
 |> Ash.read!()
 ```
 
-The query goes to the database and caches nothing. The option has to be
-given when the query is built (or to `Ash.read/2`); adding it with
-`Ash.Query.set_context/2` after `for_read` is too late.
+The query goes to the database and caches nothing. You can also add the
+option with `Ash.Query.set_context/2`, any time before the query runs.
 
 ## Things not worth caching
 

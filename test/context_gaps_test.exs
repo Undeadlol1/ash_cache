@@ -1,6 +1,8 @@
 defmodule AshCache.ContextGapsTest do
   use ExUnit.Case, async: true
 
+  alias AshCache.Test.CachedWidget
+  alias AshCache.Test.Events
   alias AshCache.Test.ViewerWidget
 
   setup do
@@ -13,5 +15,19 @@ defmodule AshCache.ContextGapsTest do
     assert [%{name: "alice"}] = Ash.read!(query, actor: %{id: "alice"})
     assert [%{name: "bob"}] = Ash.read!(query, actor: %{id: "bob"})
     assert [%{name: "alice"}] = Ash.read!(query, actor: %{id: "alice"})
+  end
+
+  test "set_context bypass applied after for_read still skips the cache" do
+    CachedWidget
+    |> Ash.Changeset.for_create(:create, %{name: "x", value: 1})
+    |> Ash.create!()
+
+    Events.drain()
+
+    query = Ash.Query.set_context(Ash.Query.for_read(CachedWidget, :read), %{ash_cache: :bypass})
+
+    Ash.read!(query)
+    Ash.read!(query)
+    assert Events.drain() == []
   end
 end

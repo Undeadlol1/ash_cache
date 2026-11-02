@@ -29,22 +29,20 @@ defmodule AshCache.Preparations.ReadThrough do
   alias AshCache.Key
   alias AshCache.Store
 
+  # A bulk update/destroy selects its target rows through a read action.
+  # Caching that selection serves stale rows to a mutation, and a
+  # before_action hook on it makes Ash refuse the fully-atomic strategy.
   @impl true
   def prepare(query, opts, context) do
-    if bypass?(query) do
+    if query.context[:query_for] in [:bulk_update, :bulk_destroy] do
       query
     else
       Ash.Query.before_action(query, &read_through(&1, opts, context))
     end
   end
 
-  # A bulk update/destroy selects its target rows through a read action.
-  # Caching that selection serves stale rows to a mutation, and a
-  # before_action hook on it makes Ash refuse the fully-atomic strategy.
-  defp bypass?(query) do
-    query.context[:ash_cache] == :bypass or
-      query.context[:query_for] in [:bulk_update, :bulk_destroy]
-  end
+  # Checked here, not in prepare/3, so `set_context` after `for_read` works.
+  defp read_through(%{context: %{ash_cache: :bypass}} = query, _opts, _context), do: query
 
   defp read_through(query, opts, context) do
     store = Keyword.fetch!(opts, :store)
