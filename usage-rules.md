@@ -36,18 +36,18 @@ when a requirement demands them.
   no way to cache all reads at once. Unlisted reads are never cached. Every name must be a read action on the resource, listed once, or
   compilation fails. A `cache` block with no `read` fails too.
 - Options on `read`: `cache_empty?: true` caches `[]` and `nil` results (off
-  by default); `adapter_options: [...]` is passed verbatim to the adapter's
+  by default); `store_options: [...]` is passed verbatim to the adapter's
   `put/4`.
 - Options on the block: `store :name` gives the resource its own store
   (default `:ash_cache`); `ttl` sets the lifetime for reads without their own.
   With the Nebulex adapter the store is the Nebulex cache module:
   `store MyApp.Cache`.
-- `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`
+- `refresh :read_action, arguments: [arg: :attribute], actor: {Mod, :fun, []}`
   re-runs a cached read after each create/update with arguments taken from
   the written record. The entry is cached for that actor only (no actor by
-  default) and for the written record's tenant, so `warm` only helps reads
+  default) and for the written record's tenant, so `refresh` only helps reads
   normally called the same way. Do not use it for per-user reads. Each
-  `warm` costs the writer one extra read.
+  `refresh` costs the writer one extra read.
 - Every successful create/update/destroy clears all cached reads of the
   resource, after commit.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
@@ -85,7 +85,7 @@ when a requirement demands them.
 - To disable caching in one process (tests, scripts):
   `Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Noop)`.
 - A custom store implements `AshCache.Store.Adapter` (`get/2`, `put/4`,
-  `del/2`, `clear/1`; a miss is `{:ok, nil}`) and is selected with
+  `delete/2`, `clear/1`; a miss is `{:ok, nil}`) and is selected with
   `config :ash_cache, adapter: MyAdapter`.
 
 ## Telemetry and tests

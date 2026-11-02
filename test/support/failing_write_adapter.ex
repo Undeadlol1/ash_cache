@@ -12,7 +12,7 @@ defmodule AshCache.Test.FailingWriteAdapter do
   def put(_store, _key, _value, _opts), do: {:error, :boom}
 
   @impl true
-  def del(_store, _key), do: {:error, :boom}
+  def delete(_store, _key), do: {:error, :boom}
 
   @impl true
   defdelegate clear(store), to: ProcessLocal

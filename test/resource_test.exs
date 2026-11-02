@@ -1,22 +1,24 @@
 defmodule AshCache.ResourceTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureIO
+
   test "the extension wires its transformer and verifier" do
     assert AshCache.Resource.Transformers.AttachCacheHooks in AshCache.Resource.transformers()
-    assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
+    assert AshCache.Resource.Verifiers.ValidateCacheBlock in AshCache.Resource.verifiers()
   end
 
-  test "the section carries the store and the default ttl" do
+  test "the cache block carries the store and the default ttl" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
     assert Keyword.keys(section.schema) == [:store, :ttl]
     assert section.schema[:ttl][:default] == 300_000
     assert section.schema[:store][:default] == :ash_cache
-    assert Enum.map(section.entities, & &1.name) == [:read, :warm]
+    assert Enum.map(section.entities, & &1.name) == [:read, :refresh]
   end
 
-  test "the read entity has an optional ttl and defaults the rest" do
+  test "a read entry has an optional ttl and defaults the rest" do
     [section] = AshCache.Resource.sections()
     read = Enum.find(section.entities, &(&1.name == :read))
 
@@ -25,7 +27,7 @@ defmodule AshCache.ResourceTest do
     refute read.schema[:ttl][:required]
     refute Keyword.has_key?(read.schema[:ttl], :default)
     assert read.schema[:cache_empty?][:default] == false
-    assert read.schema[:adapter_options][:default] == []
+    assert read.schema[:store_options][:default] == []
   end
 
   test "a read without a ttl compiles" do
@@ -57,7 +59,7 @@ defmodule AshCache.ResourceTest do
     end
   end
 
-  test "the old section-level reads option does not compile" do
+  test "the old block-level reads option does not compile" do
     assert_raise CompileError, fn ->
       compile_cached_resource("reads [:read]")
     end
@@ -66,7 +68,13 @@ defmodule AshCache.ResourceTest do
   defp compile_cached_resource(cache_body) do
     name = "AshCache.Test.Compiled#{System.unique_integer([:positive])}"
 
-    Code.compile_string("""
+    # Compiling at test time prints the expected compile errors and a
+    # protocol-consolidation warning to stderr; keep them out of the run.
+    capture_io(:stderr, fn -> Code.compile_string(source(name, cache_body)) end)
+  end
+
+  defp source(name, cache_body) do
+    """
     defmodule #{name} do
       use Ash.Resource,
         domain: nil,
@@ -86,6 +94,6 @@ defmodule AshCache.ResourceTest do
         defaults [:read]
       end
     end
-    """)
+    """
   end
 end

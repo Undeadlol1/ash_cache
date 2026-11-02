@@ -55,7 +55,7 @@ defmodule AshCache.Test.WidgetScaffold do
       attributes do
         uuid_primary_key(:id)
         attribute(:name, :string, allow_nil?: false, public?: true)
-        attribute(:value, :integer, allow_nil?: false, default: 0, public?: true)
+        attribute(:quantity, :integer, allow_nil?: false, default: 0, public?: true)
       end
     end
   end
@@ -125,9 +125,9 @@ defmodule AshCache.Test.PartiallyCachedWidget do
   widget_actions()
 end
 
-defmodule AshCache.Test.WarmedWidget do
+defmodule AshCache.Test.RefreshedWidget do
   @moduledoc """
-  Warm-after-write case: a successful write re-runs the declared read so the
+  Refresh-after-write case: a successful write re-runs the declared read so the
   fresh value is cached before anyone asks for it.
   """
 
@@ -135,7 +135,7 @@ defmodule AshCache.Test.WarmedWidget do
 
   cache do
     read(:get_by_name, ttl: to_timeout(hour: 1))
-    warm(:get_by_name, args: [name: :name])
+    refresh(:get_by_name, arguments: [name: :name])
   end
 
   widget_attributes()
@@ -315,8 +315,8 @@ defmodule AshCache.Test.TenantWidget do
   end
 end
 
-defmodule AshCache.Test.WarmedTenantWidget do
-  @moduledoc "Warm-after-write case on a multi-tenant resource."
+defmodule AshCache.Test.RefreshedTenantWidget do
+  @moduledoc "Refresh-after-write case on a multi-tenant resource."
 
   use Ash.Resource,
     domain: AshCache.Test.Domain,
@@ -334,7 +334,7 @@ defmodule AshCache.Test.WarmedTenantWidget do
 
   cache do
     read(:get_by_name, ttl: to_timeout(hour: 1))
-    warm(:get_by_name, args: [name: :name])
+    refresh(:get_by_name, arguments: [name: :name])
   end
 
   attributes do
@@ -352,7 +352,7 @@ defmodule AshCache.Test.WarmedTenantWidget do
   end
 end
 
-defmodule AshCache.Test.FilteredWidget do
+defmodule AshCache.Test.MapArgumentWidget do
   @moduledoc "Map-argument case: a cached read taking a map argument."
 
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
@@ -374,7 +374,7 @@ end
 
 defmodule AshCache.Test.LabelledWidget do
   @moduledoc """
-  Warm-args case: the warmed read's argument (`label`) is named differently
+  Refresh-arguments case: the refreshed read's argument (`label`) is named differently
   from the attribute (`name`) that feeds it.
   """
 
@@ -382,7 +382,7 @@ defmodule AshCache.Test.LabelledWidget do
 
   cache do
     read(:get_by_label, ttl: to_timeout(hour: 1))
-    warm(:get_by_label, args: [label: :name])
+    refresh(:get_by_label, arguments: [label: :name])
   end
 
   widget_attributes()
@@ -410,7 +410,7 @@ defmodule AshCache.Test.Domain do
     end
 
     resource(AshCache.Test.PartiallyCachedWidget)
-    resource(AshCache.Test.WarmedWidget)
+    resource(AshCache.Test.RefreshedWidget)
     resource(AshCache.Test.GuardedWidget)
     resource(AshCache.Test.OwnedWidget)
     resource(AshCache.Test.TwoTtlWidget)
@@ -420,8 +420,8 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.InfiniteReadWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
-    resource(AshCache.Test.WarmedTenantWidget)
-    resource(AshCache.Test.FilteredWidget)
+    resource(AshCache.Test.RefreshedTenantWidget)
+    resource(AshCache.Test.MapArgumentWidget)
     resource(AshCache.Test.LabelledWidget)
   end
 end

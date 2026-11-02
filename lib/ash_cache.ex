@@ -25,7 +25,7 @@ defmodule AshCache do
       Metadata: `:resource`, `:store`.
   """
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Info
   alias AshCache.Store
 
@@ -35,7 +35,7 @@ defmodule AshCache do
   """
   @spec invalidate(Ash.Resource.t()) :: :ok | {:error, term()}
   def invalidate(resource) do
-    Generation.bump(Info.cache_store!(resource), resource)
+    CacheVersion.bump(Info.cache_store!(resource), resource)
   end
 
   @doc "Clears a whole store, including other resources' entries."

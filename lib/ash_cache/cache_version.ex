@@ -1,21 +1,21 @@
-defmodule AshCache.Generation do
+defmodule AshCache.CacheVersion do
   @moduledoc """
-  Per-resource cache generation (epoch) counter, stored in the same store
+  Per-resource cache version counter, stored in the same store
   as the cached entries.
 
-  Every cache key embeds the resource's current generation, so bumping the
+  Every cache key embeds the resource's current cache version, so bumping the
   counter makes every previously cached entry unreachable in O(1) — the
   invalidation strategy for writes. Orphaned entries age out via their TTL.
 
-  The one rule everything here follows: **a generation value is used once
+  The one rule everything here follows: **a cache version value is used once
   and never comes back.** Old entries can only be reached again through
-  their old generation, so as long as no old value returns, no old entry
+  their old cache version, so as long as no old value returns, no old entry
   does — whatever the store loses, evicts or restarts.
 
   Every value is 128 random bits, never a count. A count read-then-incremented
   would let two writers both write N+1, and a reader that derived its key
   between their commits could cache data missing the second write under a
-  generation that never changes again. A count, or a node-local unique
+  cache version that never changes again. A count, or a node-local unique
   integer, also starts over: after a node restart against a store that
   outlived it (Redis), or after the store lost the counter. Random values
   repeat neither.
@@ -32,7 +32,7 @@ defmodule AshCache.Generation do
   answers a fresh value that is never written, so every key misses while the
   store is unhealthy — a burst of reads, never stale data.
 
-  The counter is still stored with `pin: true` and `ttl: :infinity`, so a
+  The counter is still stored with `never_evict: true` and `ttl: :infinity`, so a
   store that drops entries to stay within a bound keeps it: losing it is
   safe, but costs every cached read of the resource.
   """
@@ -44,12 +44,12 @@ defmodule AshCache.Generation do
   def current(store, resource) do
     case Store.get(store, counter_key(resource)) do
       {:ok, nil} ->
-        generation = new_value()
-        _ = put(store, resource, generation)
-        generation
+        version = new_value()
+        _ = put(store, resource, version)
+        version
 
-      {:ok, generation} ->
-        generation
+      {:ok, version} ->
+        version
 
       {:error, _reason} ->
         new_value()
@@ -60,7 +60,7 @@ defmodule AshCache.Generation do
   def bump(store, resource) do
     result =
       with {:error, _reason} <- put(store, resource, new_value()) do
-        Store.del(store, counter_key(resource))
+        Store.delete(store, counter_key(resource))
       end
 
     if result == :ok do
@@ -70,11 +70,11 @@ defmodule AshCache.Generation do
     result
   end
 
-  defp put(store, resource, generation) do
-    Store.put(store, counter_key(resource), generation, ttl: :infinity, pin: true)
+  defp put(store, resource, version) do
+    Store.put(store, counter_key(resource), version, ttl: :infinity, never_evict: true)
   end
 
   defp new_value, do: :crypto.strong_rand_bytes(16)
 
-  defp counter_key(resource), do: {:ash_cache_generation, resource}
+  defp counter_key(resource), do: {:ash_cache_version, resource}
 end

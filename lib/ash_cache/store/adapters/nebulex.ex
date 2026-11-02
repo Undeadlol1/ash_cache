@@ -8,10 +8,10 @@ defmodule AshCache.Store.Adapters.Nebulex do
   `store MyApp.Cache`, and you start `MyApp.Cache` in your supervision tree
   instead of `AshCache.Supervisor`. See the storage guide.
 
-  `:pin` is dropped: Nebulex has no way to exempt one entry from eviction.
+  `:never_evict` is dropped: Nebulex has no way to exempt one entry from eviction.
   Losing the counter it was for costs misses, never old data
-  (see `AshCache.Generation`). Every other option, including a read's
-  `adapter_options`, is passed to the cache's `put/3`.
+  (see `AshCache.CacheVersion`). Every other option, including a read's
+  `store_options`, is passed to the cache's `put/3`.
   """
 
   @behaviour AshCache.Store.Adapter
@@ -21,11 +21,11 @@ defmodule AshCache.Store.Adapters.Nebulex do
 
   @impl true
   def put(cache, key, value, opts) do
-    call(fn -> cache.put(key, value, Keyword.delete(opts, :pin)) end)
+    call(fn -> cache.put(key, value, Keyword.delete(opts, :never_evict)) end)
   end
 
   @impl true
-  def del(cache, key), do: call(fn -> cache.delete(key, []) end)
+  def delete(cache, key), do: call(fn -> cache.delete(key, []) end)
 
   @impl true
   def clear(cache) do

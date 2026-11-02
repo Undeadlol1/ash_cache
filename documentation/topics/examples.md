@@ -189,14 +189,14 @@ same for every user.
 ```elixir
 cache do
   read :get_by_key, ttl: :timer.hours(1)
-  warm :get_by_key, args: [key: :key], actor: {MyApp.SystemActor, :new, []}
+  refresh :get_by_key, arguments: [key: :key], actor: {MyApp.SystemActor, :new, []}
 end
 ```
 
-Without `warm`, the first request after a change goes to the database.
+Without `refresh`, the first request after a change goes to the database.
 With it, the update reads the setting again and caches it before it
-returns. `args` says which field of the saved record fills each argument of
-the read. `warm` caches the result only for the actor it reads as (no actor
+returns. `arguments` says which field of the saved record fills each argument of
+the read. `refresh` caches the result only for the actor it reads as (no actor
 unless you set `actor`), so it only helps if your app always reads settings
 as that same actor.
 
@@ -220,7 +220,7 @@ one user's settings can never be served to another. Pass the user as the
 actor when you read, for example through a code interface or
 `Ash.Query.for_read(query, :for_current_user, %{}, actor: user)`.
 
-There is no `warm` here. `warm` reads as one fixed actor, so it would cache
+There is no `refresh` here. `refresh` reads as one fixed actor, so it would cache
 an entry that no user's request ever looks up.
 
 Any user saving their settings clears the cached settings of all users,
@@ -244,8 +244,8 @@ cached results. Pass the tenant as you already do for Ash
 interface).
 
 A write in any tenant clears the cache for all tenants of that resource.
-In an app with many busy tenants, that can mean most reads miss. `warm`
-works on a multi-tenant resource: it warms the tenant of the record that
+In an app with many busy tenants, that can mean most reads miss. `refresh`
+works on a multi-tenant resource: it refreshes the cache for the tenant of the record that
 was written. Other tenants' entries are cleared and fill on their next read.
 
 ## Dashboard numbers and leaderboards
