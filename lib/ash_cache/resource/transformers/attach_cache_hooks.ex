@@ -22,22 +22,26 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
   @doc false
   def transform(dsl_state) do
     store = Transformer.get_option(dsl_state, [:cache], :store)
-    warm_specs = Transformer.get_entities(dsl_state, [:cache])
+    entities = Transformer.get_entities(dsl_state, [:cache])
+    warm_specs = Enum.filter(entities, &match?(%AshCache.Warm{}, &1))
 
-    read_opts = [
-      store: store,
-      ttl: Transformer.get_option(dsl_state, [:cache], :ttl),
-      cache_empty?: Transformer.get_option(dsl_state, [:cache], :cache_empty?),
-      adapter_options: Transformer.get_option(dsl_state, [:cache], :adapter_options)
-    ]
-
-    cached_reads = Transformer.get_option(dsl_state, [:cache], :reads)
+    cached_reads =
+      for %AshCache.CachedRead{} = read <- entities, into: %{}, do: {read.name, read}
 
     dsl_state
     |> Transformer.get_entities([:actions])
     |> Enum.reduce(dsl_state, fn action, dsl_state ->
       cond do
-        action.type == :read and action.name in cached_reads ->
+        action.type == :read and is_map_key(cached_reads, action.name) ->
+          read = cached_reads[action.name]
+
+          read_opts = [
+            store: store,
+            ttl: read.ttl,
+            cache_empty?: read.cache_empty?,
+            adapter_options: read.adapter_options
+          ]
+
           attach_preparation(dsl_state, action, read_opts)
 
         action.type in @write_types ->

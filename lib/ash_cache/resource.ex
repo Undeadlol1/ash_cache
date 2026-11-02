@@ -1,6 +1,6 @@
 defmodule AshCache.Resource do
   @moduledoc """
-  Caches the read actions you list.
+  Caches the read actions you declare, each with its own lifetime.
 
       defmodule MyApp.Shop.Product do
         use Ash.Resource,
@@ -8,22 +8,26 @@ defmodule AshCache.Resource do
           extensions: [AshCache.Resource]
 
         cache do
-          reads [:get_by_sku]
+          read :get_by_sku, ttl: :timer.hours(1)
         end
       end
 
-  With only `reads` set:
+  Each `read` is cached, keyed by the action, the whole query, the actor and
+  the tenant (see `AshCache.Key`). `ttl` is required; empty results are not
+  cached unless you ask. Entries go in the shared `:ash_cache` store unless you
+  set `store`. Every create, update or destroy clears the resource's cached
+  reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
 
-    * the listed reads are cached, keyed by the action, the whole query,
-      the actor and the tenant (see `AshCache.Key`)
-    * entries live for one hour in the shared `:ash_cache` store
-    * every create, update or destroy clears the resource's cached reads
-      after the transaction commits (see `AshCache.Changes.BumpGeneration`)
-    * empty results are not cached
-
-  Reads that are not listed are never cached.
+  Reads without a `read` entry are never cached.
   """
 
+  @read %Spark.Dsl.Entity{
+    name: :read,
+    describe: "Cache this read action, with its own lifetime and settings.",
+    target: AshCache.CachedRead,
+    args: [:name],
+    schema: AshCache.CachedRead.schema()
+  }
   @warm %Spark.Dsl.Entity{
     name: :warm,
     describe: """
@@ -36,34 +40,13 @@ defmodule AshCache.Resource do
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Which reads to cache, and how.",
-    entities: [@warm],
+    describe: "Which reads to cache, and where.",
+    entities: [@read, @warm],
     schema: [
-      ttl: [
-        type: :pos_integer,
-        default: to_timeout(hour: 1),
-        doc: "Milliseconds a cached entry lives before it expires."
-      ],
       store: [
         type: :atom,
         default: :ash_cache,
         doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
-      ],
-      reads: [
-        type: {:list, :atom},
-        required: true,
-        doc: "The read actions to cache. Reads not listed are never cached."
-      ],
-      cache_empty?: [
-        type: :boolean,
-        default: false,
-        doc: "Whether empty results ([] or nil) are cached. Off by default."
-      ],
-      adapter_options: [
-        type: :keyword_list,
-        default: [],
-        doc:
-          "Options passed verbatim to the store adapter's put/4. Couples the resource to that adapter."
       ]
     ]
   }

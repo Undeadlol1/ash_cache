@@ -96,7 +96,9 @@ defmodule AshCache.Test.CachedWidget do
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   cache do
-    reads([:read, :get_by_name, :paged])
+    read(:read, ttl: to_timeout(hour: 1))
+    read(:get_by_name, ttl: to_timeout(hour: 1))
+    read(:paged, ttl: to_timeout(hour: 1))
   end
 
   widget_attributes()
@@ -114,10 +116,8 @@ defmodule AshCache.Test.PartiallyCachedWidget do
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   cache do
-    ttl(to_timeout(minute: 5))
     store(:partial_store)
-    reads([:get_by_name])
-    cache_empty?(true)
+    read(:get_by_name, ttl: to_timeout(minute: 5), cache_empty?: true)
   end
 
   widget_attributes()
@@ -133,7 +133,7 @@ defmodule AshCache.Test.WarmedWidget do
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   cache do
-    reads([:get_by_name])
+    read(:get_by_name, ttl: to_timeout(hour: 1))
     warm(:get_by_name, args: [name: :name])
   end
 
@@ -154,7 +154,7 @@ defmodule AshCache.Test.GuardedWidget do
     read_policy: actor_present()
 
   cache do
-    reads([:read])
+    read(:read, ttl: to_timeout(hour: 1))
   end
 
   widget_attributes()
@@ -174,7 +174,21 @@ defmodule AshCache.Test.OwnedWidget do
     read_policy: expr(name == ^actor(:id))
 
   cache do
-    reads([:read])
+    read(:read, ttl: to_timeout(hour: 1))
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.TwoTtlWidget do
+  @moduledoc "Per-read ttl case: two cached reads with different lifetimes."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:get_by_name, ttl: to_timeout(hour: 1))
+    read(:paged, ttl: to_timeout(minute: 1))
   end
 
   widget_attributes()
@@ -197,5 +211,6 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.WarmedWidget)
     resource(AshCache.Test.GuardedWidget)
     resource(AshCache.Test.OwnedWidget)
+    resource(AshCache.Test.TwoTtlWidget)
   end
 end

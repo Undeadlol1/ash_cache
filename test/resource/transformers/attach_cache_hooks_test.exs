@@ -7,6 +7,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
   alias AshCache.Resource.Transformers.AttachCacheHooks
   alias AshCache.Test.CachedWidget
   alias AshCache.Test.PartiallyCachedWidget
+  alias AshCache.Test.TwoTtlWidget
   alias Spark.Dsl.Extension
 
   defp read_through_opts(resource, action_name) do
@@ -46,14 +47,15 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
     end
   end
 
-  describe "empty cache block (all defaults)" do
-    test "every read action gets the read-through preparation with defaults" do
+  describe "plain read declarations" do
+    test "every declared read gets the read-through preparation with defaults" do
       for action_name <- [:read, :get_by_name] do
         opts = read_through_opts(CachedWidget, action_name)
 
         assert opts[:store] == :ash_cache
         assert opts[:ttl] == to_timeout(hour: 1)
         assert opts[:cache_empty?] == false
+        assert opts[:adapter_options] == []
       end
     end
 
@@ -80,6 +82,12 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
       assert opts[:store] == :partial_store
       assert opts[:ttl] == to_timeout(minute: 5)
       assert opts[:cache_empty?] == true
+    end
+
+    test "each read gets its own ttl, and an undeclared read gets none" do
+      assert read_through_opts(TwoTtlWidget, :get_by_name)[:ttl] == to_timeout(hour: 1)
+      assert read_through_opts(TwoTtlWidget, :paged)[:ttl] == to_timeout(minute: 1)
+      assert read_through_opts(TwoTtlWidget, :read) == nil
     end
 
     test "write actions are still invalidated even when reads are narrowed" do

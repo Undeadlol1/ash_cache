@@ -5,6 +5,7 @@ defmodule AshCache.IntegrationTest do
   alias AshCache.Test.Domain
   alias AshCache.Test.GuardedWidget
   alias AshCache.Test.OwnedWidget
+  alias AshCache.Test.TwoTtlWidget
 
   defp create!(name, value \\ 0) do
     CachedWidget
@@ -210,5 +211,26 @@ defmodule AshCache.IntegrationTest do
       |> Ash.read!()
 
     assert Enum.map(descending, & &1.value) == [2, 1]
+  end
+
+  test "each cached read is stored with its own ttl" do
+    TwoTtlWidget
+    |> Ash.Changeset.for_create(:create, %{name: "ttl"})
+    |> Ash.create!()
+
+    before_ms = System.monotonic_time(:millisecond)
+    Ash.read!(Ash.Query.for_read(TwoTtlWidget, :get_by_name, %{name: "ttl"}))
+    Ash.read!(Ash.Query.for_read(TwoTtlWidget, :paged))
+    after_ms = System.monotonic_time(:millisecond)
+
+    lifetimes =
+      for {{:ash_cache_entry, :ash_cache, _key}, {_records, expires_at}} <- Process.get(),
+          is_integer(expires_at),
+          do: expires_at
+
+    assert length(lifetimes) == 2
+    [short, long] = Enum.sort(lifetimes)
+    assert short in (before_ms + to_timeout(minute: 1))..(after_ms + to_timeout(minute: 1))
+    assert long in (before_ms + to_timeout(hour: 1))..(after_ms + to_timeout(hour: 1))
   end
 end

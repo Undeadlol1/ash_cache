@@ -14,7 +14,7 @@ defmodule AshCache.WarmTest do
   end
 
   test "the warm DSL entity is readable through Info" do
-    assert [warm] = AshCache.Info.cache(WarmedWidget)
+    assert [warm] = Enum.filter(AshCache.Info.cache(WarmedWidget), &match?(%AshCache.Warm{}, &1))
 
     assert warm.read == :get_by_name
     assert warm.args == [name: :name]

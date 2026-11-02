@@ -6,29 +6,60 @@ defmodule AshCache.ResourceTest do
     assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
   end
 
-  test "the section carries the documented defaults" do
+  test "the section only carries the store" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
-    assert section.schema[:ttl][:default] == to_timeout(hour: 1)
+    assert Keyword.keys(section.schema) == [:store]
     assert section.schema[:store][:default] == :ash_cache
-    assert section.schema[:reads][:required] == true
-    refute Keyword.has_key?(section.schema[:reads], :default)
-    assert section.schema[:cache_empty?][:default] == false
-    assert section.schema[:adapter_options][:default] == []
+    assert Enum.map(section.entities, & &1.name) == [:read, :warm]
   end
 
-  # Caching is opt-in per read: a cache block that does not say which reads
-  # to cache is a mistake, not a request to cache everything.
-  test "a cache block without reads does not compile" do
-    assert_raise Spark.Error.DslError, ~r/reads/, fn ->
-      compile_cached_resource("")
+  test "the read entity requires a ttl and defaults the rest" do
+    [section] = AshCache.Resource.sections()
+    read = Enum.find(section.entities, &(&1.name == :read))
+
+    assert read.target == AshCache.CachedRead
+    assert read.args == [:name]
+    assert read.schema[:ttl][:required] == true
+    refute Keyword.has_key?(read.schema[:ttl], :default)
+    assert read.schema[:cache_empty?][:default] == false
+    assert read.schema[:adapter_options][:default] == []
+  end
+
+  test "a read without a ttl does not compile" do
+    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
+      compile_cached_resource("read :read")
     end
   end
 
-  test "reads must be a list of action names, not :all" do
-    assert_raise Spark.Error.DslError, ~r/reads/, fn ->
-      compile_cached_resource("reads :all")
+  test "a zero ttl does not compile" do
+    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
+      compile_cached_resource("read :read, ttl: 0")
+    end
+  end
+
+  test "a negative ttl does not compile" do
+    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
+      compile_cached_resource("read :read, ttl: -5")
+    end
+  end
+
+  test "an :infinity ttl does not compile" do
+    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
+      compile_cached_resource("read :read, ttl: :infinity")
+    end
+  end
+
+  test "the old section-level reads option does not compile" do
+    assert_raise CompileError, fn ->
+      compile_cached_resource("reads [:read]")
+    end
+  end
+
+  test "the old section-level ttl option does not compile" do
+    assert_raise CompileError, fn ->
+      compile_cached_resource("read :read, ttl: 1000\n        ttl 1000")
     end
   end
 

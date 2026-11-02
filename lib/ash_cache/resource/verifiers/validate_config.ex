@@ -1,7 +1,8 @@
 defmodule AshCache.Resource.Verifiers.ValidateConfig do
   @moduledoc """
-  Rejects a `reads` list naming an action that is not a read action on the
-  resource — a typo there would silently cache nothing.
+  Rejects a `cache` block that caches nothing, names an action that is not a
+  read action, declares the same read twice, or warms a read it does not cache.
+  A typo in any of these would silently cache nothing.
   """
 
   use Spark.Dsl.Verifier
@@ -11,62 +12,74 @@ defmodule AshCache.Resource.Verifiers.ValidateConfig do
 
   @doc false
   def verify(dsl_state) do
-    with :ok <- verify_reads(dsl_state) do
-      verify_warms(dsl_state)
+    entities = Verifier.get_entities(dsl_state, [:cache])
+    reads = for %AshCache.CachedRead{name: name} <- entities, do: name
+    warms = for %AshCache.Warm{read: read} <- entities, do: read
+
+    with :ok <- verify_present(dsl_state, reads),
+         :ok <- verify_read_actions(dsl_state, reads),
+         :ok <- verify_unique(dsl_state, reads) do
+      verify_warms(dsl_state, reads, warms)
     end
   end
 
-  defp verify_reads(dsl_state) do
-    validate_read_names(dsl_state, Verifier.get_option(dsl_state, [:cache], :reads))
-  end
+  defp verify_present(dsl_state, []),
+    do: error(dsl_state, [:cache], "The `cache` block needs at least one `read` to cache.")
 
-  defp verify_warms(dsl_state) do
-    cached_reads = MapSet.new(Verifier.get_option(dsl_state, [:cache], :reads))
+  defp verify_present(_dsl_state, _reads), do: :ok
 
-    dsl_state
-    |> Verifier.get_entities([:cache])
-    |> Enum.reject(&MapSet.member?(cached_reads, &1.read))
-    |> case do
-      [] ->
-        :ok
+  defp verify_read_actions(dsl_state, reads) do
+    known =
+      dsl_state
+      |> Verifier.get_entities([:actions])
+      |> Enum.filter(&(&1.type == :read))
+      |> MapSet.new(& &1.name)
 
-      [%{read: uncached} | _rest] ->
-        {:error,
-         DslError.exception(
-           module: Verifier.get_persisted(dsl_state, :module),
-           path: [:cache, :warm],
-           message: """
-           `warm #{inspect(uncached)}` names an action that is not a cached read on this resource.
-           Cached read actions: #{inspect(Enum.sort(cached_reads))}.
-           """
-         )}
-    end
-  end
-
-  defp read_action_names(dsl_state) do
-    dsl_state
-    |> Verifier.get_entities([:actions])
-    |> Enum.filter(&(&1.type == :read))
-    |> MapSet.new(& &1.name)
-  end
-
-  defp validate_read_names(dsl_state, read_names) do
-    known_reads = read_action_names(dsl_state)
-
-    case Enum.reject(read_names, &MapSet.member?(known_reads, &1)) do
+    case Enum.reject(reads, &MapSet.member?(known, &1)) do
       [] ->
         :ok
 
       unknown ->
-        {:error,
-         DslError.exception(
-           module: Verifier.get_persisted(dsl_state, :module),
-           path: [:cache, :reads],
-           message: """
-           `reads` names actions that are not read actions on this resource: #{inspect(unknown)}.
-           Known read actions: #{inspect(Enum.sort(known_reads))}.
-           """
-         )}
+        error(dsl_state, [:cache, :read], """
+        `read` names actions that are not read actions on this resource: #{inspect(unknown)}.
+        Known read actions: #{inspect(Enum.sort(known))}.
+        """)
     end
+  end
+
+  defp verify_unique(dsl_state, reads) do
+    case Enum.uniq(reads -- Enum.uniq(reads)) do
+      [] ->
+        :ok
+
+      dupes ->
+        error(
+          dsl_state,
+          [:cache, :read],
+          "`read` is declared more than once for: #{inspect(dupes)}."
+        )
+    end
+  end
+
+  defp verify_warms(dsl_state, reads, warms) do
+    case Enum.reject(warms, &(&1 in reads)) do
+      [] ->
+        :ok
+
+      [uncached | _rest] ->
+        error(dsl_state, [:cache, :warm], """
+        `warm #{inspect(uncached)}` names an action that is not a cached read on this resource.
+        Cached read actions: #{inspect(Enum.sort(reads))}.
+        """)
+    end
+  end
+
+  defp error(dsl_state, path, message) do
+    {:error,
+     DslError.exception(
+       module: Verifier.get_persisted(dsl_state, :module),
+       path: path,
+       message: message
+     )}
   end
 end
