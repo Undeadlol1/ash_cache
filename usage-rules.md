@@ -52,9 +52,8 @@ when a requirement demands them.
 
 ## Rules
 
-- Pass the actor and tenant when building the query (code interfaces,
-  `Ash.read(Resource, actor: ...)`, or `Ash.Query.for_read(..., actor: ...)`).
-  The cache key is built per actor and tenant.
+- The cache key is built per actor and tenant, however they are passed
+  (code interface, `Ash.Query.for_read/4` or `Ash.read/2`).
 - Do not cache reads that `load` related data unless a short `ttl` is
   acceptable. A write to the related resource does not clear the parent's
   entry.
