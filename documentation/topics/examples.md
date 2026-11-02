@@ -38,6 +38,52 @@ signed-out visitors share one entry, but each signed-in user gets their own.
 Don't cache the editor's draft view. Editors expect to see what they just
 typed, and the draft list is read far less than the public pages.
 
+## "Related posts" and other sidebars
+
+A "related posts" or "customers also bought" box shown next to every post or
+product. Stack Overflow caches its related-questions sidebar this way.
+
+```elixir
+cache do
+  read :related, ttl: :timer.minutes(30)
+end
+```
+
+Each post's sidebar is its own entry, because the post id is an argument
+of the read. The list doesn't need to be up to date to the minute, and it is
+read on every page view.
+
+## RSS feeds and sitemaps
+
+Feeds and sitemaps that bots and feed readers fetch over and over.
+
+```elixir
+cache do
+  read :recent_for_feed, ttl: :timer.minutes(15)
+end
+```
+
+Bots fetch these far more often than you publish. Publishing a post is a
+write, so the feed updates right away; the `ttl` only limits how long an
+unchanged feed is kept.
+
+## Phoenix LiveView pages
+
+A LiveView page loads its data twice when it opens: once for the first
+HTML and once more when the browser connects.
+
+```elixir
+cache do
+  read :list_for_page, ttl: :timer.seconds(30)
+end
+```
+
+Even a short `ttl` makes the second load a cache hit, which halves the
+database work for every page visit. The two loads run in different
+processes on the same server, and the cache is shared by all processes
+on a server, so they find each other's entry (as long as they read as the
+same actor).
+
 ## Countries, currencies and pricing plans
 
 Short lists that fill dropdowns and pricing pages and almost never change.
@@ -272,6 +318,16 @@ MyApp.Shop.Product
 The query goes to the database and caches nothing. The option has to be
 given when the query is built (or to `Ash.read/2`); adding it with
 `Ash.Query.set_context/2` after `for_read` is too late.
+
+## A personal feed that changes all the time
+
+Each user's home feed, order history or inbox, on a resource that many
+users write to every second.
+
+Don't cache it with AshCache. Any write clears the cached reads of every
+user, so with constant writes almost every read is a miss, and each write
+gets slower. Shopify hit the same problem with the home feed of its Shop
+app and built a cache that is cleared per user instead.
 
 ## Things not worth caching
 
