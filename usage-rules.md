@@ -63,8 +63,8 @@ when a requirement demands them.
 - The default store is in memory per node. On several nodes a write clears
   the cache only on the node that made it; others serve old entries until
   `ttl`.
-- Do not cache a write-heavy resource without measuring: every write bumps
-  a generation counter in the store.
+- Do not cache a write-heavy resource without measuring: every write also
+  writes a new version value to the store.
 - Do not write cache keys or invalidation by hand. Both are automatic.
 - To skip the cache for one query, pass `context: %{ash_cache: :bypass}` to
   `Ash.Query.for_read/4` or `Ash.read/2`. Setting it with `set_context`

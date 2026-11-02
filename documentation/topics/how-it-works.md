@@ -40,15 +40,16 @@ it.
 
 ## On a write
 
-Each resource has a version number stored in the cache next to its
-entries. The number is part of every key.
+Each resource has a version value stored in the cache next to its
+entries. The value is part of every key.
 
-When a create, update or destroy succeeds, AshCache adds one to the number.
-Every key built with the old number is now never looked up again, so all
+When a create, update or destroy succeeds, AshCache replaces the value with
+a new one that has never been used. Every key built with the old value is
+now never looked up again, so all
 of that resource's cached reads are gone in one step, however many there
 were. The old entries are not deleted; they expire on their own.
 
-The number is bumped after the database transaction commits, not before.
+The value is replaced after the database transaction commits, not before.
 A write that is rolled back never reaches that point, so it cannot leave
 wrong data in the cache.
 
