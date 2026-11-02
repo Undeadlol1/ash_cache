@@ -30,18 +30,20 @@ defmodule AshCache.Changes.BumpGenerationTest do
 
   test "a committed write bumps the resource generation", %{store: store, opts: opts} do
     changeset = changeset_with_change(opts)
+    before = Generation.current(store, Widget)
 
     result = {:ok, %{name: "a"}}
     assert complete_transaction(changeset, result) == result
-    refute Generation.current(store, Widget) == 0
+    refute Generation.current(store, Widget) == before
   end
 
   test "a failed write does not bump the generation", %{store: store, opts: opts} do
     changeset = changeset_with_change(opts)
+    before = Generation.current(store, Widget)
 
     result = {:error, :boom}
     assert complete_transaction(changeset, result) == result
-    assert Generation.current(store, Widget) == 0
+    assert Generation.current(store, Widget) == before
   end
 
   describe "warm-after-write (through real actions)" do

@@ -1,4 +1,4 @@
-defmodule AshCache.Test.FailingPutAdapter do
+defmodule AshCache.Test.FailingWriteAdapter do
   @moduledoc false
 
   @behaviour AshCache.Store.Adapter
@@ -12,7 +12,7 @@ defmodule AshCache.Test.FailingPutAdapter do
   def put(_store, _key, _value, _opts), do: {:error, :boom}
 
   @impl true
-  defdelegate del(store, key), to: ProcessLocal
+  def del(_store, _key), do: {:error, :boom}
 
   @impl true
   defdelegate clear(store), to: ProcessLocal

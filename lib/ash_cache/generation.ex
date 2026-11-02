@@ -7,44 +7,61 @@ defmodule AshCache.Generation do
   counter makes every previously cached entry unreachable in O(1) — the
   invalidation strategy for writes. Orphaned entries age out via their TTL.
 
-  A bump never reads the counter: it writes a fresh unique token
-  (`{node(), unique_integer}`), so two concurrent bumps can never land on the
-  same value. A read-then-increment would let two writers both write N+1, and
-  a reader that derived its key between their commits could cache data
-  missing the second write under a generation that never changes again.
-  With unique tokens, a key derived after the last bump uses the last bump's
-  token, so only a reader that started after every commit can cache under it.
-  The node is part of the token so stores shared between nodes cannot
-  produce colliding values.
+  The one rule everything here follows: **a generation value is used once
+  and never comes back.** Old entries can only be reached again through
+  their old generation, so as long as no old value returns, no old entry
+  does — whatever the store loses, evicts or restarts.
 
-  A missing counter (a fresh store) self-heals to zero. That is only safe
-  because the counter is stored with `pin: true`, so a store which drops
-  entries to stay within a capacity bound cannot drop this one: healing to
-  zero after a bump would make pre-bump keys reachable again — stale data,
-  not the burst of misses a fresh store costs.
+  Every value is 128 random bits, never a count. A count read-then-incremented
+  would let two writers both write N+1, and a reader that derived its key
+  between their commits could cache data missing the second write under a
+  generation that never changes again. A count, or a node-local unique
+  integer, also starts over: after a node restart against a store that
+  outlived it (Redis), or after the store lost the counter. Random values
+  repeat neither.
 
-  A store *error* is not a missing counter and must not heal the same way:
-  the counter may well be there, and above zero. Those reads answer with an
-  unreachable generation instead, so every key misses while the store is
-  unhealthy — a burst of reads, never a rollback to stale data.
+  A missing counter — a fresh store, or one that lost it to eviction, a
+  restart, or a server leaving a distributed cache — is therefore not zero
+  but a brand-new value, written back so later reads share it. Two readers
+  finding it missing at once may each write their own; the last write wins
+  and the other's entries are merely wasted. Neither is an old value.
+
+  A bump writes a new value. If the store refuses, the bump deletes the
+  counter instead, which makes the next read pick a new value; only when the
+  store refuses both does the bump report an error. A store *error* on read
+  answers a fresh value that is never written, so every key misses while the
+  store is unhealthy — a burst of reads, never stale data.
+
+  The counter is still stored with `pin: true` and `ttl: :infinity`, so a
+  store that drops entries to stay within a bound keeps it: losing it is
+  safe, but costs every cached read of the resource.
   """
 
   alias AshCache.Store
 
-  @doc "`0` for a fresh store, otherwise an opaque token: equal only until the next bump."
+  @doc "An opaque value: equal between two calls only while no write happened in between."
   @spec current(atom(), module()) :: term()
   def current(store, resource) do
     case Store.get(store, counter_key(resource)) do
-      {:ok, nil} -> 0
-      {:ok, generation} -> generation
-      {:error, _reason} -> :erlang.unique_integer([:positive])
+      {:ok, nil} ->
+        generation = new_value()
+        _ = put(store, resource, generation)
+        generation
+
+      {:ok, generation} ->
+        generation
+
+      {:error, _reason} ->
+        new_value()
     end
   end
 
   @spec bump(atom(), module()) :: :ok | {:error, term()}
   def bump(store, resource) do
     result =
-      Store.put(store, counter_key(resource), fresh_token(), ttl: :infinity, pin: true)
+      with {:error, _reason} <- put(store, resource, new_value()) do
+        Store.del(store, counter_key(resource))
+      end
 
     if result == :ok do
       :telemetry.execute([:ash_cache, :invalidate], %{}, %{resource: resource, store: store})
@@ -53,7 +70,11 @@ defmodule AshCache.Generation do
     result
   end
 
-  defp fresh_token, do: {node(), :erlang.unique_integer([:monotonic, :positive])}
+  defp put(store, resource, generation) do
+    Store.put(store, counter_key(resource), generation, ttl: :infinity, pin: true)
+  end
+
+  defp new_value, do: :crypto.strong_rand_bytes(16)
 
   defp counter_key(resource), do: {:ash_cache_generation, resource}
 end

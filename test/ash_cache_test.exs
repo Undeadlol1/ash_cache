@@ -6,11 +6,11 @@ defmodule AshCacheTest do
   alias AshCache.Test.CachedWidget
 
   test "invalidate/1 bumps the resource's generation in its declared store" do
-    assert Generation.current(:ash_cache, CachedWidget) == 0
+    before = Generation.current(:ash_cache, CachedWidget)
 
     assert :ok = AshCache.invalidate(CachedWidget)
 
-    refute Generation.current(:ash_cache, CachedWidget) == 0
+    refute Generation.current(:ash_cache, CachedWidget) == before
   end
 
   test "clear_store/1 empties the store" do
