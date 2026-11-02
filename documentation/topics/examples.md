@@ -148,9 +148,9 @@ cached results. Pass the tenant as you already do for Ash
 interface).
 
 A write in any tenant clears the cache for all tenants of that resource.
-In an app with many busy tenants, that can mean most reads miss. Don't use
-`warm` on a multi-tenant resource: it reads without a tenant, so it either
-fails (and logs a warning) or caches an entry that no tenant looks up.
+In an app with many busy tenants, that can mean most reads miss. `warm`
+works on a multi-tenant resource: it warms the tenant of the record that
+was written. Other tenants' entries are cleared and fill on their next read.
 
 ## Dashboard numbers and leaderboards
 
