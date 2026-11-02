@@ -76,6 +76,8 @@ common situation.
 
 - [Examples](documentation/topics/examples.md): the `cache` block for each
   common situation.
+- [Storage](documentation/topics/storage.md): the built-in stores, running
+  on several nodes, and writing your own adapter.
 - [How to test with AshCache](documentation/topics/testing.md): keep
   parallel tests apart, turn caching off for one test.
 - [How AshCache works](documentation/topics/how-it-works.md): what goes in
@@ -90,6 +92,8 @@ common situation.
 - **Related records can go stale.** A cached read that loads related
   records keeps the old related records until the entry expires. Keep
   `load` off cached reads, or choose a short `ttl`.
+- **Each node has its own cache.** On several nodes, a write clears the
+  cache only on the node that made it. See [Storage](documentation/topics/storage.md).
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

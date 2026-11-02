@@ -41,10 +41,3 @@ MyApp.Shop.Product
 
 To clear a resource's cache by hand inside a test, call
 `AshCache.invalidate(MyApp.Shop.Product)`.
-
-## Test your own store adapter
-
-If you wrote an adapter, copy the package's contract test
-(`test/support/store_contract.ex` in the repository). It runs the same
-`get`, `put`, `del`, `clear` and expiry checks against every adapter that
-ships with the package.

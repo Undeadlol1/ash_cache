@@ -58,6 +58,7 @@ defmodule AshCache.MixProject do
         {"README.md", title: "Home"},
         "documentation/topics/examples.md",
         "documentation/topics/how-it-works.md",
+        "documentation/topics/storage.md",
         "documentation/topics/testing.md",
         {"documentation/dsls/DSL-AshCache.Resource.md",
          search_data: Spark.Docs.search_data_for(AshCache.Resource)},

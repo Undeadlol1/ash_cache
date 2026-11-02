@@ -86,12 +86,7 @@ In order from smallest to largest:
    database and saves nothing.
 3. **Clear by hand.** `AshCache.invalidate(resource)` does what a write
    does. `AshCache.clear_store(store)` empties a whole store.
-4. **Use a different store.** Implement `AshCache.Store.Adapter` (four
-   functions: `get`, `put`, `del`, `clear`) and set
-   `config :ash_cache, adapter: MyAdapter`. Three adapters ship with the
-   package: `Cachex` (the default, in memory, shared by the node),
-   `ProcessLocal` (one cache per process, for tests) and `Noop` (caching
-   off).
+4. **Use a different store.** See the [Storage](storage.md) guide.
 
 ## Limits
 
