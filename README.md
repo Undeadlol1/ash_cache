@@ -102,6 +102,9 @@ update when the `ttl` runs out, or sooner if you call
   `load` off cached reads, or choose a short `ttl`.
 - **Each node has its own cache.** On several nodes, a write clears the
   cache only on the node that made it. See [Storage](documentation/topics/storage.md).
+- **No protection when a popular entry runs out.** Every request that
+  arrives before the read is cached again goes to the database. Choose a
+  `ttl` your database can handle that burst for.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

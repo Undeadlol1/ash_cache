@@ -55,6 +55,25 @@ Don't cache the read that decides what a customer is charged at checkout.
 If a price changes on one server, another server could still charge the old
 price until `ttl` runs out.
 
+## The signed-in user, loaded on every request
+
+Most apps load the current user (and often their roles) at the start of
+every request.
+
+```elixir
+cache do
+  read :get_by_id, ttl: :timer.minutes(5)
+end
+```
+
+Each user gets their own entry, because the lookup filters by their id.
+When any user changes their profile, the cached user reads of all users
+are thrown away.
+
+Keep the `ttl` short if you run several servers. Banning or locking a user
+is a write, and it throws away the cache only on the server that made it.
+The other servers keep letting the user in until the `ttl` runs out.
+
 ## Product catalog: lookup by SKU and a "best sellers" list
 
 A shop that looks products up by SKU on every product page, and shows a
@@ -84,6 +103,33 @@ Don't cache stock counts or "only 2 left" at checkout. They change with
 every order, and a stale count sells items you no longer have. Read them
 with the cache skipped (see "A report that must be exact" below), or keep
 them on a resource you don't cache.
+
+## Popular posts from the last 24 hours
+
+A blog or forum that shows the posts with the most upvotes in the last day.
+
+```elixir
+defmodule MyApp.Blog.Post do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :get_by_slug, ttl: :timer.hours(1)
+    read :top_today, ttl: :timer.minutes(1)
+  end
+end
+```
+
+Everyone sees the same cached list, rebuilt at most once a minute. Big
+sites work the same way: the top list is rebuilt every so often, not on
+every vote. The `ttl` is how often the list refreshes.
+
+Store votes in their own resource (for example `MyApp.Blog.Vote`) and count
+them with an aggregate. Votes then don't touch the post cache. If you keep
+a `vote_count` field on `Post` instead, every vote is a write to `Post` and
+throws away all cached post reads, so with lots of voting the cache is
+almost always empty.
 
 ## Settings shared by the whole app
 
@@ -171,6 +217,24 @@ would be happy to print as "updated every minute".
 Don't cache numbers that someone acts on right away, such as an account
 balance before a transfer or a usage limit that blocks requests.
 
+## Data from another service
+
+Exchange rates, weather or shipping prices fetched from an outside API
+through a read action with `manual` (a read you write yourself instead of
+a database query).
+
+```elixir
+cache do
+  read :latest, ttl: :timer.minutes(10)
+end
+```
+
+A cache hit skips your `manual` read too, so the outside API is called at
+most once per `ttl` for each set of arguments. This is often the biggest
+win, because outside APIs are slow and may charge per call or limit how
+often you can call them. Nothing in your app writes this data, so the
+`ttl` is the only thing that refreshes it.
+
 ## Data that also changes outside Ash
 
 A table that a nightly CSV import, a script with raw SQL or another service
@@ -217,4 +281,6 @@ given when the query is built (or to `Ash.read/2`); adding it with
   timestamp. Every write clears the cache, so most reads miss and every
   write gets slower.
 - **Anything that must be exact when it is used**: stock at checkout,
-  balances, the price being charged, rate limits.
+  balances, the price being charged.
+- **Counters that change on every request**, such as rate limits or view
+  counts. They are written as often as they are read.
