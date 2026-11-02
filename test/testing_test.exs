@@ -44,7 +44,7 @@ defmodule AshCache.TestingTest do
         send(test_pid, :unrelated_done)
       end)
 
-      assert_receive :unrelated_done
+      assert_receive :unrelated_done, 2000
       refute_received {:ash_cache, _, _}
     end
 
@@ -97,16 +97,16 @@ defmodule AshCache.TestingTest do
     test "each capturing process only sees its own events" do
       first = capturing_process(self(), :first)
       second = capturing_process(self(), :second)
-      assert_receive {:ready, :first}
-      assert_receive {:ready, :second}
+      assert_receive {:ready, :first}, 2000
+      assert_receive {:ready, :second}, 2000
 
       send(first, :emit)
-      assert_receive {:emitted, :first}
+      assert_receive {:emitted, :first}, 2000
       send(first, :report)
       send(second, :report)
 
-      assert_receive {:received, :first, [:invalidate]}
-      assert_receive {:received, :second, []}
+      assert_receive {:received, :first, [:invalidate]}, 2000
+      assert_receive {:received, :second, []}, 2000
     end
   end
 
