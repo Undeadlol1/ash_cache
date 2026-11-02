@@ -71,7 +71,7 @@ defmodule AshCache.MixProject do
         "About AshCache": ["CHANGELOG.md"]
       ],
       groups_for_modules: [
-        "Public API": [AshCache, AshCache.Resource, AshCache.Supervisor],
+        "Public API": [AshCache, AshCache.Resource, AshCache.Supervisor, AshCache.Testing],
         Configuration: [AshCache.Info, AshCache.Warm],
         "How it works": [
           AshCache.Key,

@@ -22,6 +22,7 @@ defmodule AshCache.DocsTest do
     AshCache.Store.Adapters.Noop
     AshCache.Store.Adapters.ProcessLocal
     AshCache.Supervisor
+    AshCache.Testing
     AshCache.Warm
   ]
 

@@ -42,7 +42,10 @@ defmodule AshCache.Generation do
         pin: true
       )
 
-    :telemetry.execute([:ash_cache, :invalidate], %{}, %{resource: resource, store: store})
+    if result == :ok do
+      :telemetry.execute([:ash_cache, :invalidate], %{}, %{resource: resource, store: store})
+    end
+
     result
   end
 
