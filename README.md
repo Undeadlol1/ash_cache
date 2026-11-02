@@ -119,8 +119,10 @@ update when the `ttl` runs out, or sooner if you call
 - **Related records can go stale.** A cached read that loads related
   records keeps the old related records until the entry expires. Keep
   `load` off cached reads, or choose a short `ttl`.
-- **Each node has its own cache.** On several nodes, a write clears the
-  cache only on the node that made it. See [Storage](documentation/topics/storage.md).
+- **The default store is per server.** On several servers, a write clears
+  the cache only on the server that made it. To share one cache, use the
+  Nebulex adapter with Redis or a partitioned cache. See
+  [Storage](documentation/topics/storage.md#running-on-several-servers).
 - **No protection when a popular entry runs out.** Every request that
   arrives before the read is cached again goes to the database. Choose a
   `ttl` your database can handle that burst for.

@@ -34,9 +34,14 @@ defmodule AshCache.Store.Adapters.Nebulex do
 
   # Nebulex raises, rather than returns, when the cache is not running —
   # during boot or shutdown, say. AshCache treats any store error as a miss.
+  # `is_struct/2`, not `rescue ... in`, so apps without Nebulex compile this
+  # module without a warning.
   defp call(fun) do
     fun.()
   rescue
-    error in Nebulex.CacheNotFoundError -> {:error, error}
+    error ->
+      if is_struct(error, Nebulex.CacheNotFoundError),
+        do: {:error, error},
+        else: reraise(error, __STACKTRACE__)
   end
 end

@@ -38,8 +38,10 @@ when a requirement demands them.
 - Options on `read`: `cache_empty?: true` caches `[]` and `nil` results (off
   by default); `adapter_options: [...]` is passed verbatim to the adapter's
   `put/4`.
-- Options on the block: `store :name` gives the resource its own Cachex store
+- Options on the block: `store :name` gives the resource its own store
   (default `:ash_cache`); `ttl` sets the lifetime for reads without their own.
+  With the Nebulex adapter the store is the Nebulex cache module:
+  `store MyApp.Cache`.
 - `warm :read_action, args: [arg: :attribute], actor: {Mod, :fun, []}`
   re-runs a cached read after each create/update with arguments taken from
   the written record. The entry is cached for that actor only (no actor by
@@ -64,7 +66,13 @@ when a requirement demands them.
   at checkout, balances, permissions checked for a payment.
 - The default store is in memory per node. On several nodes a write clears
   the cache only on the node that made it; others serve old entries until
-  `ttl`.
+  `ttl`. To share one cache, set
+  `config :ash_cache, adapter: AshCache.Store.Adapters.Nebulex`, start your
+  own Nebulex cache (Redis, partitioned or replicated) instead of
+  `AshCache.Supervisor`, and set `store MyApp.Cache` on every cached
+  resource. Do not use a coherent or multilevel-with-local cache: other
+  servers can serve old entries. With Redis, give AshCache its own database:
+  `AshCache.clear_store/1` runs FLUSHDB.
 - Do not cache a write-heavy resource without measuring: every write also
   writes a new version value to the store.
 - Do not write cache keys or invalidation by hand. Both are automatic.
