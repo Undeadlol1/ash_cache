@@ -4,8 +4,11 @@ defmodule AshCache.IntegrationTest do
   alias AshCache.Test.CachedWidget
   alias AshCache.Test.Domain
   alias AshCache.Test.Events
+  alias AshCache.Test.FilteredWidget
   alias AshCache.Test.GuardedWidget
+  alias AshCache.Test.LabelledWidget
   alias AshCache.Test.OwnedWidget
+  alias AshCache.Test.TenantWidget
   alias AshCache.Test.TwoTtlWidget
 
   setup do
@@ -292,5 +295,58 @@ defmodule AshCache.IntegrationTest do
     [short, long] = Enum.sort(lifetimes)
     assert short in (before_ms + to_timeout(minute: 1))..(after_ms + to_timeout(minute: 1))
     assert long in (before_ms + to_timeout(hour: 1))..(after_ms + to_timeout(hour: 1))
+  end
+
+  test "the same query for two tenants misses for the second and returns only its rows" do
+    for tenant <- ["acme", "globex"] do
+      TenantWidget
+      |> Ash.Changeset.for_create(:create, %{name: "row of #{tenant}"}, tenant: tenant)
+      |> Ash.create!()
+    end
+
+    Events.drain()
+
+    assert [%{name: "row of acme"}] = Ash.read!(TenantWidget, tenant: "acme")
+    assert [%{name: "row of globex"}] = Ash.read!(TenantWidget, tenant: "globex")
+    assert Events.drain() == [:miss, :miss]
+
+    assert [%{name: "row of acme"}] = Ash.read!(TenantWidget, tenant: "acme")
+    assert Events.drain() == [:hit]
+  end
+
+  test "a map argument with its keys in a different order hits the same entry" do
+    FilteredWidget
+    |> Ash.Changeset.for_create(:create, %{name: "any"})
+    |> Ash.create!()
+
+    Events.drain()
+
+    read_with = fn filters ->
+      FilteredWidget
+      |> Ash.Query.for_read(:filtered, %{filters: filters})
+      |> Ash.read!()
+    end
+
+    assert [%{name: "any"}] = read_with.(%{"a" => 1, "b" => 2})
+    assert [%{name: "any"}] = read_with.(%{"b" => 2, "a" => 1})
+    assert Events.drain() == [:miss, :hit]
+  end
+
+  test "a warm mapping a read argument to a differently named attribute caches the right record" do
+    LabelledWidget
+    |> Ash.Changeset.for_create(:create, %{name: "tagged", value: 5})
+    |> Ash.create!()
+
+    Events.drain()
+
+    {:ok, _table} = Ash.DataLayer.Ets.stop(LabelledWidget)
+    Process.delete({:ash_ets_table, LabelledWidget, nil})
+
+    assert [%{name: "tagged", value: 5}] =
+             LabelledWidget
+             |> Ash.Query.for_read(:get_by_label, %{label: "tagged"})
+             |> Ash.read!()
+
+    assert Events.drain() == [:hit]
   end
 end
