@@ -73,6 +73,10 @@ defmodule AshCache.Preparations.ReadThrough do
   defp derive_key(query, store, context) do
     generation = Generation.current(store, query.resource)
 
+    # The actor is read from the query at hook time: one passed only to
+    # `Ash.read/2` is applied after preparations run, so the preparation
+    # context may not hold it.
+    #
     # Everything shaping the result set must be keyed on. `Ash.get/2` and
     # get_by interfaces never touch `arguments`, and pagination is applied
     # after this hook — so `filter` and `page` cannot be inferred from the
@@ -90,9 +94,16 @@ defmodule AshCache.Preparations.ReadThrough do
     }
 
     Key.derive(query.resource, query.action.name, query_shape, generation,
-      actor: Map.get(context, :actor),
+      actor: actor_of(query, context),
       tenant: query.tenant
     )
+  end
+
+  defp actor_of(query, context) do
+    case query.context do
+      %{private: %{actor: actor}} -> actor
+      _no_actor_on_query -> Map.get(context, :actor)
+    end
   end
 
   defp cache_after_read(query, store, key, opts) do
