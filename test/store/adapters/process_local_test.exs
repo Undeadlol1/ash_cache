@@ -15,20 +15,20 @@ defmodule AshCache.Store.Adapters.ProcessLocalTest do
   end
 
   test "the store is bounded: overflowing entries resets it instead of leaking", %{store: store} do
-    limit = AshCache.Store.Adapters.ProcessLocal.max_entries_per_store()
+    max_entries = AshCache.Store.Adapters.ProcessLocal.max_entries_per_store()
 
-    for n <- 1..(limit + 1) do
+    for n <- 1..(max_entries + 1) do
       :ok = @adapter.put(store, {:key, n}, n, [])
     end
 
-    tracked = Enum.count(Process.get_keys(), &match?({:ash_cache_entry, ^store, _}, &1))
+    stored_entries = Enum.count(Process.get_keys(), &match?({:ash_cache_entry, ^store, _}, &1))
 
-    assert tracked <= limit
-    newest = limit + 1
+    assert stored_entries <= max_entries
+    newest = max_entries + 1
     assert {:ok, ^newest} = @adapter.get(store, {:key, newest})
   end
 
-  test "del and clear also drop the process-dictionary key tracking", %{store: store} do
+  test "deleting and clearing also drop the key tracking", %{store: store} do
     :ok = @adapter.put(store, :tracked, 1, [])
     :ok = @adapter.del(store, :tracked)
     :ok = @adapter.clear(store)

@@ -8,7 +8,7 @@ defmodule AshCache.Store.Adapters.CachexTest do
     {:ok, store: store}
   end
 
-  test "get, put, del and clear operate on the real Cachex table", %{store: store} do
+  test "reading, writing, deleting and clearing work on the real Cachex table", %{store: store} do
     assert {:ok, nil} = @adapter.get(store, :missing)
 
     :ok = @adapter.put(store, :kept, "value", [])

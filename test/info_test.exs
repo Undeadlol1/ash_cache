@@ -5,7 +5,7 @@ defmodule AshCache.InfoTest do
   alias AshCache.Test.PartiallyCachedWidget
   alias AshCache.Test.Widget
 
-  test "a block reports its store and one entity per cached read" do
+  test "a cache block reports its store and one entry per cached read" do
     assert AshCache.Info.cache_store!(CachedWidget) == :ash_cache
 
     reads = Enum.filter(AshCache.Info.cache(CachedWidget), &match?(%AshCache.CachedRead{}, &1))
@@ -24,7 +24,7 @@ defmodule AshCache.InfoTest do
     assert ttl == to_timeout(minute: 5)
   end
 
-  test "cached?/1 tells extension users apart from plain resources" do
+  test "tells resources using the extension apart from plain resources" do
     assert AshCache.Info.cached?(CachedWidget)
     assert AshCache.Info.cached?(PartiallyCachedWidget)
     refute AshCache.Info.cached?(Widget)

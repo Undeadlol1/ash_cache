@@ -5,7 +5,7 @@ defmodule AshCache.DocsTest do
   # nothing, so the gap first becomes visible to a reader of the released
   # package. Pinning the set makes both halves deliberate: hiding one of
   # these, and publishing a module that was meant to stay internal.
-  @published ~w[
+  @published_modules ~w[
     AshCache
     AshCache.CachedRead
     AshCache.Changes.BumpGeneration
@@ -29,7 +29,7 @@ defmodule AshCache.DocsTest do
   @package_root Path.expand("../lib", __DIR__)
 
   test "hexdocs publishes exactly the modules this package declares" do
-    assert documented_modules() == Enum.sort(@published)
+    assert documented_modules() == Enum.sort(@published_modules)
   end
 
   defp documented_modules do

@@ -36,14 +36,14 @@ defmodule AshCache.GenerationTest do
   end
 
   test "each bump changes the generation to a value never seen before", %{store: store} do
-    seen = [Generation.current(store, SomeResource)]
+    seen_generations = [Generation.current(store, SomeResource)]
 
     assert :ok = Generation.bump(store, SomeResource)
-    first = Generation.current(store, SomeResource)
-    refute first in seen
+    first_generation = Generation.current(store, SomeResource)
+    refute first_generation in seen_generations
 
     assert :ok = Generation.bump(store, SomeResource)
-    refute Generation.current(store, SomeResource) in [first | seen]
+    refute Generation.current(store, SomeResource) in [first_generation | seen_generations]
   end
 
   test "resources have independent generations", %{store: store} do
@@ -62,9 +62,9 @@ defmodule AshCache.GenerationTest do
 
   describe "when the store itself is unhealthy, where healing to zero would be a rollback" do
     setup do
-      previous = Process.get(:ash_cache_adapter)
+      previous_adapter = Process.get(:ash_cache_adapter)
       Process.put(:ash_cache_adapter, UnhealthyStore)
-      on_exit(fn -> StoreContract.restore_adapter(previous) end)
+      on_exit(fn -> StoreContract.restore_adapter(previous_adapter) end)
       :ok
     end
 
@@ -82,20 +82,20 @@ defmodule AshCache.GenerationTest do
       store = :"generation_cachex_#{System.unique_integer([:positive])}"
       start_supervised!(%{id: store, start: {Cachex, :start_link, [store, []]}})
 
-      previous = Process.get(:ash_cache_adapter)
+      previous_adapter = Process.get(:ash_cache_adapter)
       Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Cachex)
-      on_exit(fn -> StoreContract.restore_adapter(previous) end)
+      on_exit(fn -> StoreContract.restore_adapter(previous_adapter) end)
 
       {:ok, store: store}
     end
 
     test "bump succeeds and changes the generation each time", %{store: store} do
       assert :ok = Generation.bump(store, SomeResource)
-      first = Generation.current(store, SomeResource)
-      refute first == 0
+      first_generation = Generation.current(store, SomeResource)
+      refute first_generation == 0
 
       assert :ok = Generation.bump(store, SomeResource)
-      refute Generation.current(store, SomeResource) in [0, first]
+      refute Generation.current(store, SomeResource) in [0, first_generation]
     end
 
     test "the counter outlives ordinary cached entries", %{store: store} do
@@ -116,9 +116,9 @@ defmodule AshCache.GenerationTest do
       store = :"generation_race_#{System.unique_integer([:positive])}"
       start_supervised!(%{id: store, start: {Cachex, :start_link, [store, []]}})
 
-      previous = Process.get(:ash_cache_adapter)
+      previous_adapter = Process.get(:ash_cache_adapter)
       Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Cachex)
-      on_exit(fn -> StoreContract.restore_adapter(previous) end)
+      on_exit(fn -> StoreContract.restore_adapter(previous_adapter) end)
 
       {:ok, store: store}
     end
@@ -170,18 +170,18 @@ defmodule AshCache.GenerationTest do
 
     test "the counter survives an overflow of distinct cached query shapes" do
       assert :ok = Generation.bump(:ash_cache, __MODULE__)
-      before = Generation.current(:ash_cache, __MODULE__)
-      refute before == 0
+      generation_before = Generation.current(:ash_cache, __MODULE__)
+      refute generation_before == 0
 
       overflow_the_bound_with_distinct_query_shapes()
 
-      assert Generation.current(:ash_cache, __MODULE__) == before
+      assert Generation.current(:ash_cache, __MODULE__) == generation_before
     end
 
     defp overflow_the_bound_with_distinct_query_shapes do
-      shapes = ProcessLocal.max_entries_per_store() * 2
+      shape_count = ProcessLocal.max_entries_per_store() * 2
 
-      Enum.each(1..shapes, fn n ->
+      Enum.each(1..shape_count, fn n ->
         AshCache.Store.put(:ash_cache, {:query_shape, n}, [n], ttl: to_timeout(hour: 1))
       end)
     end

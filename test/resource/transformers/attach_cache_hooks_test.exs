@@ -67,9 +67,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
     test "existing preparations on an action are kept" do
       action = Info.action(CachedWidget, :get_by_name)
 
-      preparation_refs = Enum.map(action.preparations, & &1.preparation)
-      assert Enum.any?(preparation_refs, &match?({Ash.Resource.Preparation.Build, _}, &1))
-      assert Enum.any?(preparation_refs, &match?({ReadThrough, _}, &1))
+      attached_preparations = Enum.map(action.preparations, & &1.preparation)
+      assert Enum.any?(attached_preparations, &match?({Ash.Resource.Preparation.Build, _}, &1))
+      assert Enum.any?(attached_preparations, &match?({ReadThrough, _}, &1))
     end
 
     test "every write action gets the bump-generation change" do
@@ -103,14 +103,14 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
     end
   end
 
-  describe "ttl resolution" do
+  describe "which ttl a read gets" do
     setup do
       AshCache.Testing.capture_events()
     end
 
-    defp read_twice_then_expiries(resource) do
+    defp expiry_times_after_two_reads(resource) do
       resource
-      |> Ash.Changeset.for_create(:create, %{name: "w", value: 1})
+      |> Ash.Changeset.for_create(:create, %{name: "w", quantity: 1})
       |> Ash.create!()
 
       read = fn -> resource |> Ash.Query.for_read(:get_by_name, %{name: "w"}) |> Ash.read!() end
@@ -132,13 +132,13 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
 
     test "an :infinity block ttl is inherited and the entry never expires" do
       assert read_through_opts(InfiniteBlockWidget, :get_by_name)[:ttl] == :infinity
-      assert read_twice_then_expiries(InfiniteBlockWidget) == [:infinity]
+      assert expiry_times_after_two_reads(InfiniteBlockWidget) == [:infinity]
       assert Enum.reject(Events.drain(), &(&1 == :invalidate)) == [:miss, :hit]
     end
 
     test "an :infinity read ttl beats a finite block ttl and the entry never expires" do
       assert read_through_opts(InfiniteReadWidget, :get_by_name)[:ttl] == :infinity
-      assert read_twice_then_expiries(InfiniteReadWidget) == [:infinity]
+      assert expiry_times_after_two_reads(InfiniteReadWidget) == [:infinity]
     end
   end
 end

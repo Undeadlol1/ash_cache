@@ -6,7 +6,7 @@ defmodule AshCache.ResourceTest do
     assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
   end
 
-  test "the section carries the store and the default ttl" do
+  test "the cache block carries the store and the default ttl" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
@@ -16,7 +16,7 @@ defmodule AshCache.ResourceTest do
     assert Enum.map(section.entities, & &1.name) == [:read, :warm]
   end
 
-  test "the read entity has an optional ttl and defaults the rest" do
+  test "a read entry has an optional ttl and defaults the rest" do
     [section] = AshCache.Resource.sections()
     read = Enum.find(section.entities, &(&1.name == :read))
 
@@ -57,7 +57,7 @@ defmodule AshCache.ResourceTest do
     end
   end
 
-  test "the old section-level reads option does not compile" do
+  test "the old block-level reads option does not compile" do
     assert_raise CompileError, fn ->
       compile_cached_resource("reads [:read]")
     end

@@ -54,7 +54,7 @@ defmodule AshCache.Test.WidgetScaffold do
       attributes do
         uuid_primary_key(:id)
         attribute(:name, :string, allow_nil?: false, public?: true)
-        attribute(:value, :integer, allow_nil?: false, default: 0, public?: true)
+        attribute(:quantity, :integer, allow_nil?: false, default: 0, public?: true)
       end
     end
   end
@@ -351,7 +351,7 @@ defmodule AshCache.Test.WarmedTenantWidget do
   end
 end
 
-defmodule AshCache.Test.FilteredWidget do
+defmodule AshCache.Test.MapArgumentWidget do
   @moduledoc "Map-argument case: a cached read taking a map argument."
 
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
@@ -420,7 +420,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
     resource(AshCache.Test.WarmedTenantWidget)
-    resource(AshCache.Test.FilteredWidget)
+    resource(AshCache.Test.MapArgumentWidget)
     resource(AshCache.Test.LabelledWidget)
   end
 end

@@ -13,18 +13,18 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
   alias AshCache.Test.WarmedWidget
   alias Spark.Dsl.Transformer
 
-  defp read_entity(name), do: %AshCache.CachedRead{name: name, ttl: 1000}
+  defp cached_read(name), do: %AshCache.CachedRead{name: name, ttl: 1000}
 
-  defp without_read_entities(state) do
-    state
+  defp without_cached_reads(dsl_state) do
+    dsl_state
     |> Transformer.get_entities([:cache])
     |> Enum.filter(&match?(%AshCache.CachedRead{}, &1))
-    |> Enum.reduce(state, fn read, state ->
-      Transformer.remove_entity(state, [:cache], &(&1 == read))
+    |> Enum.reduce(dsl_state, fn read, dsl_state ->
+      Transformer.remove_entity(dsl_state, [:cache], &(&1 == read))
     end)
   end
 
-  test "accepts read entities naming real read actions" do
+  test "accepts read entries naming real read actions" do
     assert ValidateConfig.verify(PartiallyCachedWidget.spark_dsl_config()) == :ok
   end
 
@@ -33,48 +33,48 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
   end
 
   test "rejects a warm naming an uncached read" do
-    state =
+    dsl_state =
       WarmedWidget.spark_dsl_config()
-      |> without_read_entities()
-      |> Transformer.add_entity([:cache], read_entity(:read))
+      |> without_cached_reads()
+      |> Transformer.add_entity([:cache], cached_read(:read))
 
-    assert {:error, error} = ValidateConfig.verify(state)
+    assert {:error, error} = ValidateConfig.verify(dsl_state)
     assert Exception.message(error) =~ "warm :get_by_name"
   end
 
-  test "rejects a cache block with no read entities" do
-    state = without_read_entities(CachedWidget.spark_dsl_config())
+  test "rejects a cache block with no read entries" do
+    dsl_state = without_cached_reads(CachedWidget.spark_dsl_config())
 
-    assert {:error, error} = ValidateConfig.verify(state)
+    assert {:error, error} = ValidateConfig.verify(dsl_state)
     assert Exception.message(error) =~ "at least one `read`"
   end
 
   test "rejects a read that is not a read action" do
-    state =
+    dsl_state =
       Transformer.add_entity(
         CachedWidget.spark_dsl_config(),
         [:cache],
-        read_entity(:no_such_read)
+        cached_read(:no_such_read)
       )
 
-    assert {:error, error} = ValidateConfig.verify(state)
+    assert {:error, error} = ValidateConfig.verify(dsl_state)
     assert Exception.message(error) =~ "no_such_read"
     assert Exception.message(error) =~ "get_by_name"
   end
 
   test "rejects a read that names a write action" do
-    state =
-      Transformer.add_entity(CachedWidget.spark_dsl_config(), [:cache], read_entity(:create))
+    dsl_state =
+      Transformer.add_entity(CachedWidget.spark_dsl_config(), [:cache], cached_read(:create))
 
-    assert {:error, error} = ValidateConfig.verify(state)
+    assert {:error, error} = ValidateConfig.verify(dsl_state)
     assert Exception.message(error) =~ ":create"
   end
 
-  test "rejects the same action declared by two read entities" do
-    state =
-      Transformer.add_entity(CachedWidget.spark_dsl_config(), [:cache], read_entity(:paged))
+  test "rejects the same action declared by two read entries" do
+    dsl_state =
+      Transformer.add_entity(CachedWidget.spark_dsl_config(), [:cache], cached_read(:paged))
 
-    assert {:error, error} = ValidateConfig.verify(state)
+    assert {:error, error} = ValidateConfig.verify(dsl_state)
     assert Exception.message(error) =~ "more than once"
     assert Exception.message(error) =~ ":paged"
   end

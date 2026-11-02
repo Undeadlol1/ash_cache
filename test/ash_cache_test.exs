@@ -5,7 +5,7 @@ defmodule AshCacheTest do
   alias AshCache.Store
   alias AshCache.Test.CachedWidget
 
-  test "invalidate/1 bumps the resource's generation in its declared store" do
+  test "invalidating a resource bumps its generation in its declared store" do
     assert Generation.current(:ash_cache, CachedWidget) == 0
 
     assert :ok = AshCache.invalidate(CachedWidget)
@@ -13,7 +13,7 @@ defmodule AshCacheTest do
     refute Generation.current(:ash_cache, CachedWidget) == 0
   end
 
-  test "clear_store/1 empties the store" do
+  test "clearing a store empties it" do
     :ok = Store.put(:ash_cache, :key, "value")
 
     assert :ok = AshCache.clear_store(:ash_cache)

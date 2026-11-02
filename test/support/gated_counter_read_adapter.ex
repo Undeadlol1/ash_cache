@@ -7,17 +7,17 @@ defmodule AshCache.Test.GatedCounterReadAdapter do
 
   @impl true
   def get(store, {:ash_cache_generation, _resource} = key) do
-    result = CachexAdapter.get(store, key)
+    counter = CachexAdapter.get(store, key)
 
     case Process.get(:gate_owner) do
       nil ->
-        result
+        counter
 
       owner ->
-        send(owner, {:read_counter, self(), result})
+        send(owner, {:read_counter, self(), counter})
 
         receive do
-          :proceed -> result
+          :proceed -> counter
         end
     end
   end

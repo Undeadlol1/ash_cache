@@ -5,7 +5,7 @@ defmodule AshCache.WarmTest do
   alias AshCache.Changes.BumpGeneration
   alias AshCache.Test.WarmedWidget
 
-  test "schema/0 declares the entity's options and their requirements" do
+  test "a warm declares its options and which are required" do
     schema = AshCache.Warm.schema()
 
     assert schema[:read][:required] == true
@@ -13,7 +13,7 @@ defmodule AshCache.WarmTest do
     assert schema[:actor][:default] == nil
   end
 
-  test "the warm DSL entity is readable through Info" do
+  test "a declared warm is readable through the info module" do
     assert [warm] = Enum.filter(AshCache.Info.cache(WarmedWidget), &match?(%AshCache.Warm{}, &1))
 
     assert warm.read == :get_by_name
@@ -21,7 +21,7 @@ defmodule AshCache.WarmTest do
     assert warm.actor == nil
   end
 
-  test "warm specs are handed to the write actions' bump change" do
+  test "declared warms are handed to the write actions' bump change" do
     assert [%AshCache.Warm{read: :get_by_name}] = bump_change_options(WarmedWidget)[:warm]
   end
 

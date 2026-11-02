@@ -12,12 +12,12 @@ defmodule AshCache.KeyTest do
     defstruct [:id]
   end
 
-  describe "derive/5" do
+  describe "cache keys" do
     test "same inputs produce the same key" do
-      key_one = Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, [])
-      key_two = Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, [])
+      first_key = Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, [])
+      second_key = Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, [])
 
-      assert key_one == key_two
+      assert first_key == second_key
     end
 
     test "map insertion order does not change the key, at any nesting depth" do
@@ -26,9 +26,9 @@ defmodule AshCache.KeyTest do
         {%{filter: %{alpha: 1, beta: 2}}, %{filter: %{beta: 2, alpha: 1}}}
       ]
 
-      for {args_one, args_two} <- reorderings do
-        assert Key.derive(FakeResource, :read, args_one, 0, []) ==
-                 Key.derive(FakeResource, :read, args_two, 0, [])
+      for {shape, reordered_shape} <- reorderings do
+        assert Key.derive(FakeResource, :read, shape, 0, []) ==
+                 Key.derive(FakeResource, :read, reordered_shape, 0, [])
       end
     end
 
@@ -43,7 +43,7 @@ defmodule AshCache.KeyTest do
     end
 
     test "every part of the query shape separates keys, not only the arguments" do
-      base = %{
+      base_shape = %{
         arguments: %{},
         filter: nil,
         sort: [],
@@ -56,20 +56,20 @@ defmodule AshCache.KeyTest do
       }
 
       shapes = [
-        %{base | sort: [name: :asc]},
-        %{base | limit: 10},
-        %{base | offset: 10},
-        %{base | page: [limit: 10]},
-        %{base | distinct: [:name]},
-        %{base | select: [:name]},
-        %{base | load: [:owner]}
+        %{base_shape | sort: [name: :asc]},
+        %{base_shape | limit: 10},
+        %{base_shape | offset: 10},
+        %{base_shape | page: [limit: 10]},
+        %{base_shape | distinct: [:name]},
+        %{base_shape | select: [:name]},
+        %{base_shape | load: [:owner]}
       ]
 
-      unshaped = Key.derive(FakeResource, :read, base, 0, [])
+      base_key = Key.derive(FakeResource, :read, base_shape, 0, [])
 
       for shape <- shapes do
-        refute Key.derive(FakeResource, :read, shape, 0, []) == unshaped,
-               "#{inspect(shape)} does not separate from the unshaped query"
+        refute Key.derive(FakeResource, :read, shape, 0, []) == base_key,
+               "#{inspect(shape)} does not separate from the base query"
       end
     end
 
