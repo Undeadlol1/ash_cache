@@ -418,6 +418,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.BlockTtlWidget)
     resource(AshCache.Test.InfiniteBlockWidget)
     resource(AshCache.Test.InfiniteReadWidget)
+    resource(AshCache.Test.ProbedWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
     resource(AshCache.Test.WarmedTenantWidget)

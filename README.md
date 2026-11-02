@@ -123,9 +123,6 @@ update when the `ttl` runs out, or sooner if you call
   the cache only on the server that made it. To share one cache, use the
   Nebulex adapter with Redis or a partitioned cache. See
   [Storage](documentation/topics/storage.md#running-on-several-servers).
-- **No protection when a popular entry runs out.** Every request that
-  arrives before the read is cached again goes to the database. Choose a
-  `ttl` your database can handle that burst for.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

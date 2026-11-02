@@ -22,7 +22,7 @@ defmodule AshCache.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger, :crypto]]
+    [extra_applications: [:logger, :crypto], mod: {AshCache.Application, []}]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -81,6 +81,7 @@ defmodule AshCache.MixProject do
         "How it works": [
           AshCache.Key,
           AshCache.Generation,
+          AshCache.Coalesce,
           AshCache.Preparations.ReadThrough,
           AshCache.Changes.BumpGeneration,
           AshCache.Resource.Transformers.AttachCacheHooks,

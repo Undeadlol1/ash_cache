@@ -9,6 +9,7 @@ defmodule AshCache.DocsTest do
     AshCache
     AshCache.CachedRead
     AshCache.Changes.BumpGeneration
+    AshCache.Coalesce
     AshCache.Generation
     AshCache.Info
     AshCache.Key

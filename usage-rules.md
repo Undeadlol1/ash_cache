@@ -50,6 +50,11 @@ when a requirement demands them.
   `warm` costs the writer one extra read.
 - Every successful create/update/destroy clears all cached reads of the
   resource, after commit.
+- Identical misses running at the same time on one server share one data
+  layer read (keyed on the full cache key, so never across actors or
+  tenants). Do not add your own locking around cached reads. Waiters give up
+  after `config :ash_cache, rebuild_timeout: ms` (default 5000) and read
+  for themselves.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
   Choose `ttl` per read: long for content that rarely changes, short for
   results that change without a write (time-based filters, aggregates over

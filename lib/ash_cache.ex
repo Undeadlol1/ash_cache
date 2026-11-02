@@ -14,8 +14,10 @@ defmodule AshCache do
   are bypassed, or not cached, emit nothing. Actor and tenant are never in
   the metadata.
 
-    * `[:ash_cache, :read, :hit]` - a cached read was answered from the
-      store. Metadata: `:resource`, `:action`, `:store`.
+    * `[:ash_cache, :read, :hit]` - a cached read was answered without the
+      data layer: from the store, or with the records of an identical read
+      running at the same time (see `AshCache.Coalesce`). Metadata:
+      `:resource`, `:action`, `:store`.
     * `[:ash_cache, :read, :miss]` - a cached read was not in the store and
       went to the data layer. Metadata: `:resource`, `:action`, `:store`,
       and `:error`, which is `nil` normally or the reason when the store

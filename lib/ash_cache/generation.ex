@@ -23,8 +23,9 @@ defmodule AshCache.Generation do
   A missing counter — a fresh store, or one that lost it to eviction, a
   restart, or a server leaving a distributed cache — is therefore not zero
   but a brand-new value, written back so later reads share it. Two readers
-  finding it missing at once may each write their own; the last write wins
-  and the other's entries are merely wasted. Neither is an old value.
+  finding it missing at once on one server share one new value (see
+  `AshCache.Coalesce`); on two servers each may write its own, the last write
+  wins and the other's entries are merely wasted. Neither is an old value.
 
   A bump writes a new value. If the store refuses, the bump deletes the
   counter instead, which makes the next read pick a new value; only when the
@@ -37,6 +38,7 @@ defmodule AshCache.Generation do
   safe, but costs every cached read of the resource.
   """
 
+  alias AshCache.Coalesce
   alias AshCache.Store
 
   @doc "An opaque value: equal between two calls only while no write happened in between."
@@ -44,9 +46,7 @@ defmodule AshCache.Generation do
   def current(store, resource) do
     case Store.get(store, counter_key(resource)) do
       {:ok, nil} ->
-        generation = new_value()
-        _ = put(store, resource, generation)
-        generation
+        replace_missing(store, resource)
 
       {:ok, generation} ->
         generation
@@ -68,6 +68,37 @@ defmodule AshCache.Generation do
     end
 
     result
+  end
+
+  # Readers on this server that find the counter missing at the same time
+  # share one new value, or each would build its own keys and all of them
+  # would read the data layer.
+  defp replace_missing(store, resource) do
+    key = {:ash_cache_missing_generation, store, resource}
+
+    case Coalesce.join(key) do
+      {:shared, generation} ->
+        generation
+
+      :retry ->
+        current(store, resource)
+
+      _lead_or_alone ->
+        # Looks once more: another reader may have just written one.
+        generation =
+          case Store.get(store, counter_key(resource)) do
+            {:ok, generation} when not is_nil(generation) ->
+              generation
+
+            _missing_or_error ->
+              generation = new_value()
+              _ = put(store, resource, generation)
+              generation
+          end
+
+        Coalesce.release(key, {:ok, generation})
+        generation
+    end
   end
 
   defp put(store, resource, generation) do

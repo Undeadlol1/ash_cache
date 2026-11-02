@@ -213,7 +213,7 @@ defmodule AshCache.GenerationTest do
       refute Generation.current(store, SomeResource) in seen
     end
 
-    test "lands on a value that is neither the old one nor the bump's", %{store: store} do
+    test "lands on the bump's value or a new one, never an old one", %{store: store} do
       seen = bump_and_collect(store, 1)
       :ok = AshCache.Store.del(store, counter_key())
       owner = self()
@@ -228,10 +228,15 @@ defmodule AshCache.GenerationTest do
       assert_receive {:read_counter, _pid, {:ok, nil}}
       :ok = Generation.bump(store, SomeResource)
       bumped = Generation.current(store, SomeResource)
+      # Twice: the reader looks at the counter again once it leads the
+      # replacement.
+      send(reader.pid, :proceed)
       send(reader.pid, :proceed)
       healed = Task.await(reader)
 
-      refute healed in [bumped | seen]
+      # Adopting the bump's value is fine: this reader reads the data layer
+      # after the write committed.
+      refute healed in seen
       assert Generation.current(store, SomeResource) in [healed, bumped]
       refute Generation.current(store, SomeResource) in seen
     end
