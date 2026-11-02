@@ -25,10 +25,13 @@ Add the package to `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ash_cache, "~> 0.1"}
+    {:ash_cache, "~> 0.1"},
+    {:cachex, "~> 3.6"}
   ]
 end
 ```
+
+Cachex is the default store. To use another store, see the Storage guide.
 
 Add the supervisor to your application. It starts the cache stores:
 

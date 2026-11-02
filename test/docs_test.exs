@@ -45,7 +45,7 @@ defmodule AshCache.DocsTest do
   end
 
   defp documented_module(source) do
-    with [_, module] <- Regex.run(~r/^defmodule\s+([\w.]+)\s+do$/m, source),
+    with [_, module] <- Regex.run(~r/^\s*defmodule\s+([\w.]+)\s+do$/m, source),
          false <- source =~ ~r/^\s*@moduledoc false$/m do
       [module]
     else
