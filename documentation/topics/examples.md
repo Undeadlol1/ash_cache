@@ -1,13 +1,64 @@
 # Examples
 
-One `cache` block for each common situation. Combine them as you need.
-Every option is listed in the [DSL reference](../dsls/DSL-AshCache.Resource.md).
+Each section below is a feature you might have in your app, with the
+`cache` block for it and why it is set up that way. Every option is listed
+in the [DSL reference](../dsls/DSL-AshCache.Resource.md).
 
-## Cache one lookup
+Two things apply to every example:
 
-A product catalogue that is looked up by SKU thousands of times a minute.
-Its list and search results change too often to be worth caching, so only
-the lookup is listed.
+- Any successful create, update or destroy through Ash clears all cached
+  reads of that resource. `ttl` only matters for changes that do not go
+  through a write on the same resource.
+- The default store keeps each server's cache in its own memory. If your
+  app runs on several servers, a write clears the cache only on the server
+  that made it, and the others serve the old result until `ttl` runs out.
+  See [Storage](storage.md).
+
+## Blog posts and help pages
+
+Pages that editors change a few times a week and visitors read all day.
+
+```elixir
+defmodule MyApp.Content.Post do
+  use Ash.Resource,
+    domain: MyApp.Content,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :get_by_slug, ttl: :timer.hours(24)
+    read :published, ttl: :timer.hours(24)
+  end
+end
+```
+
+Editors change posts through Ash, and each change clears the cache, so a
+long `ttl` costs nothing in freshness. Results are cached per actor: all
+signed-out visitors share one entry, but each signed-in user gets their own.
+
+Don't cache the editor's draft view. Editors expect to see what they just
+typed, and the draft list is read far less than the public pages.
+
+## Countries, currencies and pricing plans
+
+Short lists that fill dropdowns and pricing pages and almost never change.
+
+```elixir
+cache do
+  read :read, ttl: :timer.hours(24)
+end
+```
+
+These lists are read on many pages and changed maybe once a year, which is
+the best case for a cache.
+
+Don't cache the read that decides what a customer is charged at checkout.
+If a price changes on one server, another server could still charge the old
+price until `ttl` runs out.
+
+## Product catalog: lookup by SKU and a "best sellers" list
+
+A shop that looks products up by SKU on every product page, and shows a
+list of best sellers ranked by this week's orders.
 
 ```elixir
 defmodule MyApp.Shop.Product do
@@ -17,102 +68,153 @@ defmodule MyApp.Shop.Product do
 
   cache do
     read :get_by_sku, ttl: :timer.hours(1)
+    read :best_sellers, ttl: :timer.minutes(5), cache_empty?: true
   end
 end
 ```
 
-Every other read on the resource goes straight to the database.
+The SKU lookup only changes when the product changes, and that write clears
+the cache, so it can live for an hour. The best-seller ranking comes from
+orders, which are a different resource: new orders do not clear the
+product cache, so the `ttl` of 5 minutes is how old the ranking can get.
+`cache_empty?: true` keeps an empty list too, so a quiet week does not send
+every page view to the database.
 
-## Data that also changes outside Ash
+Don't cache stock counts or "only 2 left" at checkout. They change with
+every order, and a stale count sells items you no longer have. Read them
+with the cache skipped (see "A report that must be exact" below), or keep
+them on a resource you don't cache.
 
-A table that a nightly import or another service also writes to. AshCache
-only notices writes made through Ash, so the other writes show up once the
-cached entry expires. Set `ttl` to the longest delay you can accept.
+## Settings shared by the whole app
 
-```elixir
-cache do
-  read :read, ttl: :timer.minutes(2)
-end
-```
-
-## Refresh the cache right after each write
-
-A settings resource that is read on every request and rarely updated.
-Without `warm`, the first read after an update goes to the database. With
-it, the update refreshes the cache before it returns.
+Feature flags or site settings that every request reads, and that look the
+same for every user.
 
 ```elixir
 cache do
   read :get_by_key, ttl: :timer.hours(1)
-  warm :get_by_key, args: [key: :key]
+  warm :get_by_key, args: [key: :key], actor: {MyApp.SystemActor, :new, []}
 end
 ```
 
-`args` says which attribute of the saved record fills each argument of the
-read.
+Without `warm`, the first request after a change goes to the database.
+With it, the update reads the setting again and caches it before it
+returns. `args` says which field of the saved record fills each argument of
+the read. `warm` caches the result only for the actor it reads as (no actor
+unless you set `actor`), so it only helps if your app always reads settings
+as that same actor.
 
-The refreshed entry is saved for the actor that `warm` reads as, which is
-no actor by default. So `warm` only helps if the read is normally called
-the same way. If your app always reads settings as one system actor, give
-`warm` a function that returns that actor:
+Don't rely on this to switch off something urgent, like a kill switch for a
+broken payment provider, when you run several servers. The other servers
+keep the old value for up to `ttl`. Use a short `ttl` for those flags, or
+skip the cache for them.
 
-```elixir
-warm :get_by_key, args: [key: :key], actor: {MyApp.SystemActor, :new, []}
-```
+## Each user's own settings or feature flags
 
-## Clear one resource without touching the rest
-
-`AshCache.clear_store/1` empties a whole store. Give a resource its own
-store so you can empty it alone.
+Preferences or per-user flags read on every request for the signed-in user.
 
 ```elixir
 cache do
-  store :products_cache
+  read :for_current_user, ttl: :timer.minutes(30)
+end
+```
+
+The cache key includes the actor, so each user gets their own entry, and
+one user's settings can never be served to another. Pass the user as the
+actor when you read, for example through a code interface or
+`Ash.Query.for_read(query, :for_current_user, %{}, actor: user)`.
+
+There is no `warm` here. `warm` reads as one fixed actor, so it would cache
+an entry that no user's request ever looks up.
+
+Any user saving their settings clears the cached settings of all users,
+because clearing works per resource. If many users change settings all the
+time, measure whether the cache still helps.
+
+## A multi-tenant app
+
+Each customer company (tenant) has its own projects, and every page lists
+the current tenant's projects.
+
+```elixir
+cache do
+  read :read, ttl: :timer.minutes(15)
+end
+```
+
+The cache key includes the tenant, so one company never sees another's
+cached results. Pass the tenant as you already do for Ash
+(`Ash.read(query, tenant: org_id)` or the `tenant:` option on a code
+interface).
+
+A write in any tenant clears the cache for all tenants of that resource.
+In an app with many busy tenants, that can mean most reads miss. Don't use
+`warm` on a multi-tenant resource: it reads without a tenant, so it either
+fails (and logs a warning) or caches an entry that no tenant looks up.
+
+## Dashboard numbers and leaderboards
+
+A team dashboard that shows totals counted from other resources, or a
+leaderboard of players by points won in matches.
+
+```elixir
+cache do
+  read :dashboard, ttl: :timer.minutes(1)
+end
+```
+
+Numbers like these are usually counts or sums of other records, loaded
+with Ash aggregates. Writes to those other records do not clear this
+resource's cache, so the numbers are up to `ttl` old. Pick the `ttl` you
+would be happy to print as "updated every minute".
+
+Don't cache numbers that someone acts on right away, such as an account
+balance before a transfer or a usage limit that blocks requests.
+
+## Data that also changes outside Ash
+
+A table that a nightly CSV import, a script with raw SQL or another service
+also writes to.
+
+```elixir
+cache do
   read :read, ttl: :timer.minutes(10)
 end
 ```
 
-```elixir
-AshCache.clear_store(:products_cache)
-```
-
-## Skip the cache for one query
-
-A report that must see the latest data, on a resource that is otherwise
-cached.
+AshCache only sees writes made through Ash. Other writes show up when the
+entry expires, so set `ttl` to the longest delay you can accept. If you
+control the import, clear the cache when it finishes:
 
 ```elixir
-MyApp.Shop.Product
-|> Ash.Query.set_context(%{ash_cache: :bypass})
-|> Ash.read!()
-```
-
-The query reads from the database and saves nothing.
-
-## Clear the cache by hand
-
-After a bulk import done with raw SQL, clear the resource yourself. This
-does exactly what a write through Ash does.
-
-```elixir
+MyApp.Import.run!()
 AshCache.invalidate(MyApp.Shop.Product)
 ```
 
-## Turn caching off in one environment
+`AshCache.invalidate/1` does exactly what a write through Ash does. Like a
+write, it clears only the server it runs on.
 
-For example, in a staging environment where you want every read to hit the
-database:
+## A report that must be exact
 
-```elixir
-# config/staging.exs
-config :ash_cache, adapter: AshCache.Store.Adapters.Noop
-```
-
-## Use your own storage
-
-Point AshCache at your own adapter module. The
-[Storage](storage.md) guide shows how to write one.
+A finance export or an admin page that must show the database as it is
+right now, on a resource that is otherwise cached.
 
 ```elixir
-config :ash_cache, adapter: MyApp.MyCacheAdapter
+MyApp.Shop.Product
+|> Ash.Query.for_read(:read, %{}, context: %{ash_cache: :bypass})
+|> Ash.read!()
 ```
+
+The query goes to the database and caches nothing. The option has to be
+given when the query is built (or to `Ash.read/2`); adding it with
+`Ash.Query.set_context/2` after `for_read` is too late.
+
+## Things not worth caching
+
+- **Search results and filtered lists.** Each search term and filter is its
+  own entry, so the same entry is rarely read twice.
+- **Data written about as often as it is read**, such as a "last seen"
+  timestamp. Every write clears the cache, so most reads miss and every
+  write gets slower.
+- **Anything that must be exact when it is used**: stock at checkout,
+  balances, the price being charged, rate limits.
