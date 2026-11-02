@@ -1,6 +1,8 @@
 defmodule AshCache.Changes.InvalidateCacheTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureLog
+
   alias AshCache.Changes.InvalidateCache
   alias AshCache.CacheVersion
   alias AshCache.Test.Widget
@@ -113,7 +115,12 @@ defmodule AshCache.Changes.InvalidateCacheTest do
         actor: {ExplodingActor, :resolve, []}
       }
 
-      assert {:ok, %{quantity: 3}} = write_result_after_refreshing(exploding_refresh)
+      log =
+        capture_log(fn ->
+          assert {:ok, %{quantity: 3}} = write_result_after_refreshing(exploding_refresh)
+        end)
+
+      assert log =~ "AshCache could not refresh"
     end
 
     test "a refresh whose read is rejected does not fail the committed write" do
@@ -123,7 +130,12 @@ defmodule AshCache.Changes.InvalidateCacheTest do
         actor: nil
       }
 
-      assert {:ok, %{quantity: 3}} = write_result_after_refreshing(unknown_read_refresh)
+      log =
+        capture_log(fn ->
+          assert {:ok, %{quantity: 3}} = write_result_after_refreshing(unknown_read_refresh)
+        end)
+
+      assert log =~ "AshCache could not refresh"
     end
 
     test "a destroy does not refresh a read for the dead record" do

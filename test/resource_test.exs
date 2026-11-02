@@ -1,6 +1,8 @@
 defmodule AshCache.ResourceTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureIO
+
   test "the extension wires its transformer and verifier" do
     assert AshCache.Resource.Transformers.AttachCacheHooks in AshCache.Resource.transformers()
     assert AshCache.Resource.Verifiers.ValidateCacheBlock in AshCache.Resource.verifiers()
@@ -66,7 +68,13 @@ defmodule AshCache.ResourceTest do
   defp compile_cached_resource(cache_body) do
     name = "AshCache.Test.Compiled#{System.unique_integer([:positive])}"
 
-    Code.compile_string("""
+    # Compiling at test time prints the expected compile errors and a
+    # protocol-consolidation warning to stderr; keep them out of the run.
+    capture_io(:stderr, fn -> Code.compile_string(source(name, cache_body)) end)
+  end
+
+  defp source(name, cache_body) do
+    """
     defmodule #{name} do
       use Ash.Resource,
         domain: nil,
@@ -86,6 +94,6 @@ defmodule AshCache.ResourceTest do
         defaults [:read]
       end
     end
-    """)
+    """
   end
 end
