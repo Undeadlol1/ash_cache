@@ -36,10 +36,14 @@ defmodule AshCache.Generation do
 
   @spec bump(atom(), module()) :: :ok | {:error, term()}
   def bump(store, resource) do
-    Store.put(store, counter_key(resource), current(store, resource) + 1,
-      ttl: :infinity,
-      pin: true
-    )
+    result =
+      Store.put(store, counter_key(resource), current(store, resource) + 1,
+        ttl: :infinity,
+        pin: true
+      )
+
+    :telemetry.execute([:ash_cache, :invalidate], %{}, %{resource: resource, store: store})
+    result
   end
 
   defp counter_key(resource), do: {:ash_cache_generation, resource}

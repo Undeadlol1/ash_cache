@@ -6,6 +6,23 @@ defmodule AshCache do
   These helpers are the runtime escape hatch for operational situations
   (a support task, a migration) that need to reach past the declarative
   layer.
+
+  ## Telemetry
+
+  Three `:telemetry` events let you assert cache behaviour in tests and
+  measure hit rates in production. All have empty measurements. Reads that
+  are bypassed, or not cached, emit nothing. Actor and tenant are never in
+  the metadata.
+
+    * `[:ash_cache, :read, :hit]` - a cached read was answered from the
+      store. Metadata: `:resource`, `:action`, `:store`.
+    * `[:ash_cache, :read, :miss]` - a cached read was not in the store and
+      went to the data layer. Metadata: `:resource`, `:action`, `:store`,
+      and `:error`, which is `nil` normally or the reason when the store
+      failed to answer (the read still goes through).
+    * `[:ash_cache, :invalidate]` - a resource's cache was invalidated, by
+      a successful create, update or destroy or by `invalidate/1`.
+      Metadata: `:resource`, `:store`.
   """
 
   alias AshCache.Generation

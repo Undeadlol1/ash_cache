@@ -51,10 +51,23 @@ defmodule AshCache.Preparations.ReadThrough do
     key = derive_key(query, store, context)
 
     case Store.get(store, key) do
-      {:ok, nil} -> cache_after_read(query, store, key, opts)
-      {:ok, records} -> Ash.Query.set_result(query, {:ok, records})
-      {:error, _reason} -> query
+      {:ok, nil} ->
+        emit(:miss, query, store, error: nil)
+        cache_after_read(query, store, key, opts)
+
+      {:ok, records} ->
+        emit(:hit, query, store)
+        Ash.Query.set_result(query, {:ok, records})
+
+      {:error, reason} ->
+        emit(:miss, query, store, error: reason)
+        query
     end
+  end
+
+  defp emit(event, query, store, extra \\ []) do
+    metadata = %{resource: query.resource, action: query.action.name, store: store}
+    :telemetry.execute([:ash_cache, :read, event], %{}, Map.merge(metadata, Map.new(extra)))
   end
 
   defp derive_key(query, store, context) do

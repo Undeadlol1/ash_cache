@@ -33,6 +33,7 @@ defmodule AshCache.MixProject do
       {:ash, "~> 3.32"},
       {:spark, "~> 2.3"},
       {:cachex, "~> 3.6"},
+      {:telemetry, "~> 1.2"},
       # Ash needs a SAT solver to evaluate policies; the suite has resources
       # with policies, so it is a test-only dependency here rather than
       # something this package imposes on its users.
