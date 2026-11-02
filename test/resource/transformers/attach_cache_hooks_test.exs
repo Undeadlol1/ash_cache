@@ -5,7 +5,12 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
   alias AshCache.Changes.BumpGeneration
   alias AshCache.Preparations.ReadThrough
   alias AshCache.Resource.Transformers.AttachCacheHooks
+  alias AshCache.Test.BlockTtlWidget
   alias AshCache.Test.CachedWidget
+  alias AshCache.Test.DefaultTtlWidget
+  alias AshCache.Test.Events
+  alias AshCache.Test.InfiniteBlockWidget
+  alias AshCache.Test.InfiniteReadWidget
   alias AshCache.Test.PartiallyCachedWidget
   alias AshCache.Test.TwoTtlWidget
   alias Spark.Dsl.Extension
@@ -95,6 +100,45 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
         assert bump_generation_opts(PartiallyCachedWidget, action_name) ==
                  [store: :partial_store]
       end
+    end
+  end
+
+  describe "ttl resolution" do
+    setup do
+      AshCache.Testing.capture_events()
+    end
+
+    defp read_twice_then_expiries(resource) do
+      resource
+      |> Ash.Changeset.for_create(:create, %{name: "w", value: 1})
+      |> Ash.create!()
+
+      read = fn -> resource |> Ash.Query.for_read(:get_by_name, %{name: "w"}) |> Ash.read!() end
+      read.()
+      read.()
+
+      for {{:ash_cache_entry, :ash_cache, _key}, {[_ | _], expires_at}} <- Process.get(),
+          do: expires_at
+    end
+
+    test "no ttl anywhere falls back to five minutes" do
+      assert read_through_opts(DefaultTtlWidget, :get_by_name)[:ttl] == 300_000
+    end
+
+    test "a read inherits the block ttl and its own ttl wins" do
+      assert read_through_opts(BlockTtlWidget, :get_by_name)[:ttl] == to_timeout(minute: 2)
+      assert read_through_opts(BlockTtlWidget, :paged)[:ttl] == to_timeout(second: 10)
+    end
+
+    test "an :infinity block ttl is inherited and the entry never expires" do
+      assert read_through_opts(InfiniteBlockWidget, :get_by_name)[:ttl] == :infinity
+      assert read_twice_then_expiries(InfiniteBlockWidget) == [:infinity]
+      assert Enum.reject(Events.drain(), &(&1 == :invalidate)) == [:miss, :hit]
+    end
+
+    test "an :infinity read ttl beats a finite block ttl and the entry never expires" do
+      assert read_through_opts(InfiniteReadWidget, :get_by_name)[:ttl] == :infinity
+      assert read_twice_then_expiries(InfiniteReadWidget) == [:infinity]
     end
   end
 end

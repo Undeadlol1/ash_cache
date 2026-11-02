@@ -6,31 +6,43 @@ defmodule AshCache.ResourceTest do
     assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
   end
 
-  test "the section only carries the store" do
+  test "the section carries the store and the default ttl" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
-    assert Keyword.keys(section.schema) == [:store]
+    assert Keyword.keys(section.schema) == [:store, :ttl]
+    assert section.schema[:ttl][:default] == 300_000
     assert section.schema[:store][:default] == :ash_cache
     assert Enum.map(section.entities, & &1.name) == [:read, :warm]
   end
 
-  test "the read entity requires a ttl and defaults the rest" do
+  test "the read entity has an optional ttl and defaults the rest" do
     [section] = AshCache.Resource.sections()
     read = Enum.find(section.entities, &(&1.name == :read))
 
     assert read.target == AshCache.CachedRead
     assert read.args == [:name]
-    assert read.schema[:ttl][:required] == true
+    refute read.schema[:ttl][:required]
     refute Keyword.has_key?(read.schema[:ttl], :default)
     assert read.schema[:cache_empty?][:default] == false
     assert read.schema[:adapter_options][:default] == []
   end
 
-  test "a read without a ttl does not compile" do
-    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
-      compile_cached_resource("read :read")
+  test "a read without a ttl compiles" do
+    compile_cached_resource("read :read")
+  end
+
+  test "a zero or negative block ttl does not compile" do
+    for ttl <- [0, -5] do
+      assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
+        compile_cached_resource("ttl #{ttl}\n        read :read")
+      end
     end
+  end
+
+  test "an :infinity ttl compiles on the block and on a read" do
+    compile_cached_resource("ttl :infinity\n        read :read")
+    compile_cached_resource("read :read, ttl: :infinity")
   end
 
   test "a zero ttl does not compile" do
@@ -45,21 +57,9 @@ defmodule AshCache.ResourceTest do
     end
   end
 
-  test "an :infinity ttl does not compile" do
-    assert_raise Spark.Error.DslError, ~r/ttl/, fn ->
-      compile_cached_resource("read :read, ttl: :infinity")
-    end
-  end
-
   test "the old section-level reads option does not compile" do
     assert_raise CompileError, fn ->
       compile_cached_resource("reads [:read]")
-    end
-  end
-
-  test "the old section-level ttl option does not compile" do
-    assert_raise CompileError, fn ->
-      compile_cached_resource("read :read, ttl: 1000\n        ttl 1000")
     end
   end
 

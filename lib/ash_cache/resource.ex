@@ -13,7 +13,8 @@ defmodule AshCache.Resource do
       end
 
   Each `read` is cached, keyed by the action, the whole query, the actor and
-  the tenant (see `AshCache.Key`). `ttl` is required; empty results are not
+  the tenant (see `AshCache.Key`). A `read` lives as long as its own `ttl`,
+  else the block's `ttl` (5 minutes by default); empty results are not
   cached unless you ask. Entries go in the shared `:ash_cache` store unless you
   set `store`. Every create, update or destroy clears the resource's cached
   reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
@@ -40,13 +41,22 @@ defmodule AshCache.Resource do
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Which reads to cache, and where.",
+    describe: "Which reads to cache, where, and for how long.",
     entities: [@read, @warm],
     schema: [
       store: [
         type: :atom,
         default: :ash_cache,
         doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
+      ],
+      ttl: [
+        type: {:or, [:pos_integer, {:in, [:infinity]}]},
+        default: :timer.minutes(5),
+        doc: """
+        Milliseconds a cached entry lives before it expires, for every `read`
+        that does not set its own `ttl`. `:infinity` never expires; it is never
+        the default.
+        """
       ]
     ]
   }

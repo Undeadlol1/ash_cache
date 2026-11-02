@@ -22,6 +22,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
   @doc false
   def transform(dsl_state) do
     store = Transformer.get_option(dsl_state, [:cache], :store)
+    section_ttl = Transformer.get_option(dsl_state, [:cache], :ttl)
     entities = Transformer.get_entities(dsl_state, [:cache])
     warm_specs = Enum.filter(entities, &match?(%AshCache.Warm{}, &1))
 
@@ -37,7 +38,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
           read_opts = [
             store: store,
-            ttl: read.ttl,
+            ttl: AshCache.CachedRead.effective_ttl(read, section_ttl),
             cache_empty?: read.cache_empty?,
             adapter_options: read.adapter_options
           ]

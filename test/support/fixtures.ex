@@ -226,6 +226,62 @@ defmodule AshCache.Test.TwoTtlWidget do
   widget_actions()
 end
 
+defmodule AshCache.Test.DefaultTtlWidget do
+  @moduledoc "No ttl anywhere: reads fall back to the built-in default."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:get_by_name)
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.BlockTtlWidget do
+  @moduledoc "Block ttl: one read inherits it, one overrides it."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    ttl(to_timeout(minute: 2))
+    read(:get_by_name)
+    read(:paged, ttl: to_timeout(second: 10))
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.InfiniteBlockWidget do
+  @moduledoc "Block ttl :infinity, inherited by the read."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    ttl(:infinity)
+    read(:get_by_name)
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.InfiniteReadWidget do
+  @moduledoc "Per-read ttl :infinity over a finite block ttl."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    ttl(to_timeout(minute: 2))
+    read(:get_by_name, ttl: :infinity)
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
 defmodule AshCache.Test.TenantWidget do
   @moduledoc "Tenant-isolation case: rows belong to a tenant through an attribute."
 
@@ -357,6 +413,10 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.GuardedWidget)
     resource(AshCache.Test.OwnedWidget)
     resource(AshCache.Test.TwoTtlWidget)
+    resource(AshCache.Test.DefaultTtlWidget)
+    resource(AshCache.Test.BlockTtlWidget)
+    resource(AshCache.Test.InfiniteBlockWidget)
+    resource(AshCache.Test.InfiniteReadWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
     resource(AshCache.Test.WarmedTenantWidget)

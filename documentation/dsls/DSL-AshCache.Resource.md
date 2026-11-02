@@ -16,7 +16,8 @@ Caches the read actions you declare, each with its own lifetime.
     end
 
 Each `read` is cached, keyed by the action, the whole query, the actor and
-the tenant (see `AshCache.Key`). `ttl` is required; empty results are not
+the tenant (see `AshCache.Key`). A `read` lives as long as its own `ttl`,
+else the block's `ttl` (5 minutes by default); empty results are not
 cached unless you ask. Entries go in the shared `:ash_cache` store unless you
 set `store`. Every create, update or destroy clears the resource's cached
 reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
@@ -25,7 +26,7 @@ Reads without a `read` entry are never cached.
 
 
 ## cache
-Which reads to cache, and where.
+Which reads to cache, where, and for how long.
 
 ### Nested DSLs
  * [read](#cache-read)
@@ -40,6 +41,7 @@ Which reads to cache, and where.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. |
+| [`ttl`](#cache-ttl){: #cache-ttl } | `pos_integer \| :infinity` | `300000` | Milliseconds a cached entry lives before it expires, for every `read` that does not set its own `ttl`. `:infinity` never expires; it is never the default. |
 
 
 
@@ -64,7 +66,7 @@ Cache this read action, with its own lifetime and settings.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`ttl`](#cache-read-ttl){: #cache-read-ttl .spark-required} | `pos_integer` |  | Milliseconds a cached entry of this read lives before it expires. |
+| [`ttl`](#cache-read-ttl){: #cache-read-ttl } | `pos_integer \| :infinity` |  | Milliseconds a cached entry of this read lives before it expires, or `:infinity` to never expire. Defaults to the `cache` block's `ttl`. |
 | [`cache_empty?`](#cache-read-cache_empty?){: #cache-read-cache_empty? } | `boolean` | `false` | Whether empty results ([] or nil) are cached. Off by default. |
 | [`adapter_options`](#cache-read-adapter_options){: #cache-read-adapter_options } | `keyword` | `[]` | Options passed verbatim to the store adapter's put/4. Couples the resource to that adapter. |
 
