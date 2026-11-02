@@ -3,7 +3,7 @@ defmodule AshCache.ResourceTest do
 
   test "the extension wires its transformer and verifier" do
     assert AshCache.Resource.Transformers.AttachCacheHooks in AshCache.Resource.transformers()
-    assert AshCache.Resource.Verifiers.ValidateConfig in AshCache.Resource.verifiers()
+    assert AshCache.Resource.Verifiers.ValidateCacheBlock in AshCache.Resource.verifiers()
   end
 
   test "the cache block carries the store and the default ttl" do

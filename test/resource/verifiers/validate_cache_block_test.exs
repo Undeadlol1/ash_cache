@@ -1,7 +1,7 @@
-defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
+defmodule AshCache.Resource.Verifiers.ValidateCacheBlockTest do
   use ExUnit.Case, async: true
 
-  alias AshCache.Resource.Verifiers.ValidateConfig
+  alias AshCache.Resource.Verifiers.ValidateCacheBlock
   alias AshCache.Test.CachedWidget
   alias AshCache.Test.PartiallyCachedWidget
 
@@ -25,11 +25,11 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
   end
 
   test "accepts read entries naming real read actions" do
-    assert ValidateConfig.verify(PartiallyCachedWidget.spark_dsl_config()) == :ok
+    assert ValidateCacheBlock.verify(PartiallyCachedWidget.spark_dsl_config()) == :ok
   end
 
   test "accepts a warm naming a cached read" do
-    assert ValidateConfig.verify(WarmedWidget.spark_dsl_config()) == :ok
+    assert ValidateCacheBlock.verify(WarmedWidget.spark_dsl_config()) == :ok
   end
 
   test "rejects a warm naming an uncached read" do
@@ -38,14 +38,14 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
       |> without_cached_reads()
       |> Transformer.add_entity([:cache], cached_read(:read))
 
-    assert {:error, error} = ValidateConfig.verify(dsl_state)
+    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
     assert Exception.message(error) =~ "warm :get_by_name"
   end
 
   test "rejects a cache block with no read entries" do
     dsl_state = without_cached_reads(CachedWidget.spark_dsl_config())
 
-    assert {:error, error} = ValidateConfig.verify(dsl_state)
+    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
     assert Exception.message(error) =~ "at least one `read`"
   end
 
@@ -57,7 +57,7 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
         cached_read(:no_such_read)
       )
 
-    assert {:error, error} = ValidateConfig.verify(dsl_state)
+    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
     assert Exception.message(error) =~ "no_such_read"
     assert Exception.message(error) =~ "get_by_name"
   end
@@ -66,7 +66,7 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
     dsl_state =
       Transformer.add_entity(CachedWidget.spark_dsl_config(), [:cache], cached_read(:create))
 
-    assert {:error, error} = ValidateConfig.verify(dsl_state)
+    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
     assert Exception.message(error) =~ ":create"
   end
 
@@ -74,7 +74,7 @@ defmodule AshCache.Resource.Verifiers.ValidateConfigTest do
     dsl_state =
       Transformer.add_entity(CachedWidget.spark_dsl_config(), [:cache], cached_read(:paged))
 
-    assert {:error, error} = ValidateConfig.verify(dsl_state)
+    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
     assert Exception.message(error) =~ "more than once"
     assert Exception.message(error) =~ ":paged"
   end

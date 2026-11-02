@@ -17,7 +17,7 @@ defmodule AshCache.Resource do
   else the block's `ttl` (5 minutes by default); empty results are not
   cached unless you ask. Entries go in the shared `:ash_cache` store unless you
   set `store`. Every create, update or destroy clears the resource's cached
-  reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
+  reads after the transaction commits (see `AshCache.Changes.InvalidateCache`).
 
   Reads without a `read` entry are never cached.
   """
@@ -63,5 +63,5 @@ defmodule AshCache.Resource do
   use Spark.Dsl.Extension,
     sections: [@cache],
     transformers: [AshCache.Resource.Transformers.AttachCacheHooks],
-    verifiers: [AshCache.Resource.Verifiers.ValidateConfig]
+    verifiers: [AshCache.Resource.Verifiers.ValidateCacheBlock]
 end

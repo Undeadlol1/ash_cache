@@ -1,19 +1,19 @@
-defmodule AshCache.Changes.BumpGenerationTest do
+defmodule AshCache.Changes.InvalidateCacheTest do
   use ExUnit.Case, async: true
 
-  alias AshCache.Changes.BumpGeneration
+  alias AshCache.Changes.InvalidateCache
   alias AshCache.Generation
   alias AshCache.Test.Widget
 
   setup do
-    store = :"bump_generation_store_#{System.unique_integer([:positive])}"
+    store = :"invalidate_cache_store_#{System.unique_integer([:positive])}"
     {:ok, store: store, opts: [store: store]}
   end
 
   defp changeset_with_bump(opts) do
     Widget
     |> Ash.Changeset.for_create(:create, %{name: "a"})
-    |> BumpGeneration.change(opts, %{})
+    |> InvalidateCache.change(opts, %{})
   end
 
   defp complete_transaction(changeset, transaction_result) do
@@ -99,7 +99,7 @@ defmodule AshCache.Changes.BumpGenerationTest do
       changeset =
         Widget
         |> Ash.Changeset.for_create(:create, record)
-        |> BumpGeneration.change([store: :ash_cache, warm: [warm]], %{})
+        |> InvalidateCache.change([store: :ash_cache, warm: [warm]], %{})
 
       [hook] = changeset.after_transaction
 

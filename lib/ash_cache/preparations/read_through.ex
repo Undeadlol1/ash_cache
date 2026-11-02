@@ -46,7 +46,7 @@ defmodule AshCache.Preparations.ReadThrough do
 
   defp read_through(query, opts, context) do
     store = Keyword.fetch!(opts, :store)
-    key = derive_key(query, store, context)
+    key = build_key(query, store, context)
 
     case Store.get(store, key) do
       {:ok, nil} ->
@@ -73,7 +73,7 @@ defmodule AshCache.Preparations.ReadThrough do
     )
   end
 
-  defp derive_key(query, store, context) do
+  defp build_key(query, store, context) do
     generation = Generation.current(store, query.resource)
 
     # The actor is read from the query at hook time: one passed only to
@@ -96,7 +96,7 @@ defmodule AshCache.Preparations.ReadThrough do
       load: query.load
     }
 
-    Key.derive(query.resource, query.action.name, query_shape, generation,
+    Key.build(query.resource, query.action.name, query_shape, generation,
       actor: actor_of(query, context),
       tenant: query.tenant
     )

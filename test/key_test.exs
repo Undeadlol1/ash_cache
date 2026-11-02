@@ -14,8 +14,8 @@ defmodule AshCache.KeyTest do
 
   describe "cache keys" do
     test "same inputs produce the same key" do
-      first_key = Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, [])
-      second_key = Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, [])
+      first_key = Key.build(FakeResource, :get_by_name, %{name: "a"}, 0, [])
+      second_key = Key.build(FakeResource, :get_by_name, %{name: "a"}, 0, [])
 
       assert first_key == second_key
     end
@@ -27,19 +27,19 @@ defmodule AshCache.KeyTest do
       ]
 
       for {shape, reordered_shape} <- reorderings do
-        assert Key.derive(FakeResource, :read, shape, 0, []) ==
-                 Key.derive(FakeResource, :read, reordered_shape, 0, [])
+        assert Key.build(FakeResource, :read, shape, 0, []) ==
+                 Key.build(FakeResource, :read, reordered_shape, 0, [])
       end
     end
 
     test "different filters produce different keys, which is what stops an authorized read from answering an unauthorized one" do
-      refute Key.derive(FakeResource, :read, %{filter: %{owner_id: "user-1"}}, 0, []) ==
-               Key.derive(FakeResource, :read, %{filter: %{owner_id: "user-2"}}, 0, [])
+      refute Key.build(FakeResource, :read, %{filter: %{owner_id: "user-1"}}, 0, []) ==
+               Key.build(FakeResource, :read, %{filter: %{owner_id: "user-2"}}, 0, [])
     end
 
     test "a filter and no filter produce different keys" do
-      refute Key.derive(FakeResource, :read, %{filter: %{owner_id: "user-1"}}, 0, []) ==
-               Key.derive(FakeResource, :read, %{}, 0, [])
+      refute Key.build(FakeResource, :read, %{filter: %{owner_id: "user-1"}}, 0, []) ==
+               Key.build(FakeResource, :read, %{}, 0, [])
     end
 
     test "every part of the query shape separates keys, not only the arguments" do
@@ -65,62 +65,62 @@ defmodule AshCache.KeyTest do
         %{base_shape | load: [:owner]}
       ]
 
-      base_key = Key.derive(FakeResource, :read, base_shape, 0, [])
+      base_key = Key.build(FakeResource, :read, base_shape, 0, [])
 
       for shape <- shapes do
-        refute Key.derive(FakeResource, :read, shape, 0, []) == base_key,
+        refute Key.build(FakeResource, :read, shape, 0, []) == base_key,
                "#{inspect(shape)} does not separate from the base query"
       end
     end
 
     test "different arguments produce different keys" do
-      refute Key.derive(FakeResource, :get_by_name, %{name: "a"}, 0, []) ==
-               Key.derive(FakeResource, :get_by_name, %{name: "b"}, 0, [])
+      refute Key.build(FakeResource, :get_by_name, %{name: "a"}, 0, []) ==
+               Key.build(FakeResource, :get_by_name, %{name: "b"}, 0, [])
     end
 
     test "different actions produce different keys" do
-      refute Key.derive(FakeResource, :read, %{}, 0, []) ==
-               Key.derive(FakeResource, :list, %{}, 0, [])
+      refute Key.build(FakeResource, :read, %{}, 0, []) ==
+               Key.build(FakeResource, :list, %{}, 0, [])
     end
 
     test "different generations produce different keys" do
-      refute Key.derive(FakeResource, :read, %{}, 0, []) ==
-               Key.derive(FakeResource, :read, %{}, 1, [])
+      refute Key.build(FakeResource, :read, %{}, 0, []) ==
+               Key.build(FakeResource, :read, %{}, 1, [])
     end
 
     test "different resources produce different keys" do
-      refute Key.derive(FakeResource, :read, %{}, 0, []) ==
-               Key.derive(FakeUser, :read, %{}, 0, [])
+      refute Key.build(FakeResource, :read, %{}, 0, []) ==
+               Key.build(FakeUser, :read, %{}, 0, [])
     end
 
     test "different actors produce different keys" do
       key_for_first_actor =
-        Key.derive(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"})
+        Key.build(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"})
 
       key_for_second_actor =
-        Key.derive(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-2"})
+        Key.build(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-2"})
 
       refute key_for_first_actor == key_for_second_actor
     end
 
     test "an actor and no actor produce different keys" do
-      refute Key.derive(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"}) ==
-               Key.derive(FakeResource, :read, %{}, 0, [])
+      refute Key.build(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"}) ==
+               Key.build(FakeResource, :read, %{}, 0, [])
     end
 
     test "the same actor produces the same key" do
-      assert Key.derive(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"}) ==
-               Key.derive(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"})
+      assert Key.build(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"}) ==
+               Key.build(FakeResource, :read, %{}, 0, actor: %FakeUser{id: "user-1"})
     end
 
     test "different tenants produce different keys" do
-      refute Key.derive(FakeResource, :read, %{}, 0, tenant: "org-1") ==
-               Key.derive(FakeResource, :read, %{}, 0, tenant: "org-2")
+      refute Key.build(FakeResource, :read, %{}, 0, tenant: "org-1") ==
+               Key.build(FakeResource, :read, %{}, 0, tenant: "org-2")
     end
 
     test "a tenant and no tenant produce different keys" do
-      refute Key.derive(FakeResource, :read, %{}, 0, tenant: "org-1") ==
-               Key.derive(FakeResource, :read, %{}, 0, [])
+      refute Key.build(FakeResource, :read, %{}, 0, tenant: "org-1") ==
+               Key.build(FakeResource, :read, %{}, 0, [])
     end
   end
 end

@@ -4,7 +4,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
     * each cached read action gets the `AshCache.Preparations.ReadThrough`
       preparation, appended after any preparations the action declares
-    * every create/update/destroy gets the `AshCache.Changes.BumpGeneration`
+    * every create/update/destroy gets the `AshCache.Changes.InvalidateCache`
       change, so invalidation is a property of the resource — an action added
       later cannot forget it
   """
@@ -84,7 +84,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
     change =
       Transformer.build_entity!(Dsl, [:actions, action.type], :change,
-        change: {AshCache.Changes.BumpGeneration, change_opts}
+        change: {AshCache.Changes.InvalidateCache, change_opts}
       )
 
     replace_action(dsl_state, %{action | changes: action.changes ++ [change]})

@@ -1,4 +1,4 @@
-defmodule AshCache.Resource.Verifiers.ValidateConfig do
+defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
   @moduledoc """
   Rejects a `cache` block that caches nothing, names an action that is not a
   read action, declares the same read twice, or warms a read it does not cache.

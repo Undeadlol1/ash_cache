@@ -77,9 +77,9 @@ defmodule AshCache.MixProject do
           AshCache.Key,
           AshCache.Generation,
           AshCache.Preparations.ReadThrough,
-          AshCache.Changes.BumpGeneration,
+          AshCache.Changes.InvalidateCache,
           AshCache.Resource.Transformers.AttachCacheHooks,
-          AshCache.Resource.Verifiers.ValidateConfig
+          AshCache.Resource.Verifiers.ValidateCacheBlock
         ],
         Storage: [
           AshCache.Store,

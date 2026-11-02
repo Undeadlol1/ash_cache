@@ -8,14 +8,14 @@ defmodule AshCache.DocsTest do
   @published_modules ~w[
     AshCache
     AshCache.CachedRead
-    AshCache.Changes.BumpGeneration
+    AshCache.Changes.InvalidateCache
     AshCache.Generation
     AshCache.Info
     AshCache.Key
     AshCache.Preparations.ReadThrough
     AshCache.Resource
     AshCache.Resource.Transformers.AttachCacheHooks
-    AshCache.Resource.Verifiers.ValidateConfig
+    AshCache.Resource.Verifiers.ValidateCacheBlock
     AshCache.Store
     AshCache.Store.Adapter
     AshCache.Store.Adapters.Cachex

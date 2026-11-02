@@ -20,7 +20,7 @@ the tenant (see `AshCache.Key`). A `read` lives as long as its own `ttl`,
 else the block's `ttl` (5 minutes by default); empty results are not
 cached unless you ask. Entries go in the shared `:ash_cache` store unless you
 set `store`. Every create, update or destroy clears the resource's cached
-reads after the transaction commits (see `AshCache.Changes.BumpGeneration`).
+reads after the transaction commits (see `AshCache.Changes.InvalidateCache`).
 
 Reads without a `read` entry are never cached.
 

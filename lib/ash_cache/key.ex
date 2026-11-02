@@ -1,6 +1,6 @@
 defmodule AshCache.Key do
   @moduledoc """
-  Derives deterministic cache keys for cached read actions.
+  Builds deterministic cache keys for cached read actions.
 
   A key is a plain Erlang term (no hashing, so no collision risk) built from:
 
@@ -22,8 +22,8 @@ defmodule AshCache.Key do
           {:ash_cache, resource :: module(), generation :: term(), action :: atom(),
            query_shape :: term(), actor_ref :: term(), tenant_ref :: term()}
 
-  @spec derive(module(), atom(), map(), term(), keyword()) :: t()
-  def derive(resource, action_name, query_shape, generation, opts) do
+  @spec build(module(), atom(), map(), term(), keyword()) :: t()
+  def build(resource, action_name, query_shape, generation, opts) do
     {:ash_cache, resource, generation, action_name, normalize(query_shape),
      actor_ref(Keyword.get(opts, :actor)), tenant_ref(Keyword.get(opts, :tenant))}
   end

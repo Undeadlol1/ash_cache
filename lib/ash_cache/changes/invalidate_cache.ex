@@ -1,4 +1,4 @@
-defmodule AshCache.Changes.BumpGeneration do
+defmodule AshCache.Changes.InvalidateCache do
   @moduledoc """
   Invalidates a resource's cached reads after a successful write by bumping
   the resource's cache generation (see `AshCache.Generation`).

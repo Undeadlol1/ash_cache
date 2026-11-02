@@ -2,7 +2,7 @@ defmodule AshCache.WarmTest do
   use ExUnit.Case, async: true
 
   alias Ash.Resource.Info
-  alias AshCache.Changes.BumpGeneration
+  alias AshCache.Changes.InvalidateCache
   alias AshCache.Test.WarmedWidget
 
   test "a warm declares its options and which are required" do
@@ -21,20 +21,20 @@ defmodule AshCache.WarmTest do
     assert warm.actor == nil
   end
 
-  test "declared warms are handed to the write actions' bump change" do
-    assert [%AshCache.Warm{read: :get_by_name}] = bump_change_options(WarmedWidget)[:warm]
+  test "declared warms are handed to the write actions' invalidating change" do
+    assert [%AshCache.Warm{read: :get_by_name}] = invalidating_change_options(WarmedWidget)[:warm]
   end
 
-  test "a resource declaring no warm hands the bump change an empty warm list, so the extra read is paid only where one is declared" do
-    assert bump_change_options(AshCache.Test.Widget)[:warm] in [nil, []]
+  test "a resource declaring no warm hands the invalidating change an empty warm list, so the extra read is paid only where one is declared" do
+    assert invalidating_change_options(AshCache.Test.Widget)[:warm] in [nil, []]
   end
 
-  defp bump_change_options(resource) do
+  defp invalidating_change_options(resource) do
     resource
     |> Info.action(:create)
     |> Map.fetch!(:changes)
     |> Enum.find_value(fn
-      %{change: {BumpGeneration, opts}} -> opts
+      %{change: {InvalidateCache, opts}} -> opts
       _other -> nil
     end)
   end

@@ -2,7 +2,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
   use ExUnit.Case, async: true
 
   alias Ash.Resource.Info
-  alias AshCache.Changes.BumpGeneration
+  alias AshCache.Changes.InvalidateCache
   alias AshCache.Preparations.ReadThrough
   alias AshCache.Resource.Transformers.AttachCacheHooks
   alias AshCache.Test.BlockTtlWidget
@@ -24,11 +24,11 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
     end)
   end
 
-  defp bump_generation_opts(resource, action_name) do
+  defp invalidate_cache_opts(resource, action_name) do
     action = Info.action(resource, action_name)
 
     Enum.find_value(action.changes, fn
-      %{change: {BumpGeneration, opts}} -> opts
+      %{change: {InvalidateCache, opts}} -> opts
       _other -> nil
     end)
   end
@@ -72,9 +72,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
       assert Enum.any?(attached_preparations, &match?({ReadThrough, _}, &1))
     end
 
-    test "every write action gets the bump-generation change" do
+    test "every write action gets the cache-invalidating change" do
       for action_name <- [:create, :update, :destroy] do
-        assert bump_generation_opts(CachedWidget, action_name) == [store: :ash_cache]
+        assert invalidate_cache_opts(CachedWidget, action_name) == [store: :ash_cache]
       end
     end
   end
@@ -97,7 +97,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooksTest do
 
     test "write actions are still invalidated even when reads are narrowed" do
       for action_name <- [:create, :update, :destroy] do
-        assert bump_generation_opts(PartiallyCachedWidget, action_name) ==
+        assert invalidate_cache_opts(PartiallyCachedWidget, action_name) ==
                  [store: :partial_store]
       end
     end
