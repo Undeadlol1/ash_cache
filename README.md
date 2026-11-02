@@ -42,7 +42,8 @@ children = [
 
 ## Usage
 
-Add the extension to a resource and list the reads to cache:
+Add the extension to a resource and list each read to cache, with how long
+its results are kept (`ttl`, in milliseconds):
 
 ```elixir
 defmodule MyApp.Shop.Product do
@@ -51,35 +52,27 @@ defmodule MyApp.Shop.Product do
     extensions: [AshCache.Resource]
 
   cache do
-    reads [:get_by_sku]
+    read :get_by_sku, ttl: :timer.hours(1)
+    read :featured, ttl: :timer.minutes(1)
   end
 end
 ```
 
-The `get_by_sku` read now comes from the cache. Other reads go to the
-database as before. Entries expire after an hour, and the cache clears when
-a product is created, updated or deleted.
+`get_by_sku` and `featured` now come from the cache. Other reads go to the
+database as before. The cache clears when a product is created, updated or
+deleted.
 
-To change how long entries live, set `ttl`:
-
-```elixir
-cache do
-  reads [:get_by_sku]
-  ttl :timer.minutes(5)
-end
-```
-
-The [Examples](documentation/topics/examples.md) page has a block for each
-common situation.
+The [Examples](documentation/topics/examples.md) page shows the `cache`
+block for common app features.
 
 ## Learn more
 
-- [Examples](documentation/topics/examples.md): the `cache` block for each
-  common situation.
+- [Examples](documentation/topics/examples.md): the `cache` block for common
+  app features, and when not to cache.
 - [Storage](documentation/topics/storage.md): the built-in stores, running
   on several nodes, and writing your own adapter.
-- [How to test with AshCache](documentation/topics/testing.md): keep
-  parallel tests apart, turn caching off for one test.
+- [How to test with AshCache](documentation/topics/testing.md): check that a
+  read is cached and that a write clears it, keep parallel tests apart.
 - [How AshCache works](documentation/topics/how-it-works.md): what goes in
   a cache key, how clearing works, and the limits.
 - [DSL reference](documentation/dsls/DSL-AshCache.Resource.md): every
