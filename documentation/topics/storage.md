@@ -30,10 +30,13 @@ Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Noop)
 > #### Not tested on real servers yet {: .warning}
 >
 > Running AshCache on several servers has not been tried on real
-> hardware. It is covered by unit tests and by end-to-end tests that start
-> three nodes on one computer and share a partitioned Nebulex cache
-> between them. It has not been run on separate machines, against a real
-> Redis server, or with the replicated, coherent or multilevel adapters.
+> hardware. The tests start three Elixir nodes on one computer, all
+> joined to one shared Nebulex cache. They check that an entry saved on
+> one node is found on the others, and that clearing the cache on one node
+> clears it on all of them. They call the store directly; they don't run
+> Ash reads and writes across nodes. Nothing has been run on separate
+> machines, against a real Redis server, or with the replicated, coherent
+> or multilevel adapters.
 > Test it in your own setup before relying on it, and please
 > [report what you find](https://github.com/Undeadlol1/ash_cache/issues).
 
