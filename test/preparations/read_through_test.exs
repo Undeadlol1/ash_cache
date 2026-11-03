@@ -51,7 +51,7 @@ defmodule AshCache.Preparations.ReadThroughTest do
   end
 
   test "completing a read caches it, and the next identical read is a hit", %{opts: opts} do
-    records = [%{name: "a", quantity: 1}]
+    records = [%Widget{name: "a", quantity: 1}]
 
     prepared = prepare_and_run(query_for("a"), opts, %{})
     :ok = complete_read(prepared, records)
@@ -68,9 +68,11 @@ defmodule AshCache.Preparations.ReadThroughTest do
     filtered_b = Ash.Query.filter(unfiltered, name == "b")
 
     prepared = prepare_and_run(filtered_a, opts, %{})
-    :ok = complete_read(prepared, [%{name: "a"}])
+    :ok = complete_read(prepared, [%Widget{name: "a"}])
 
-    assert answer_from_cache(prepare_and_run(filtered_a, opts, %{})) == {:ok, [%{name: "a"}]}
+    assert answer_from_cache(prepare_and_run(filtered_a, opts, %{})) ==
+             {:ok, [%Widget{name: "a"}]}
+
     assert answer_from_cache(prepare_and_run(filtered_b, opts, %{})) == nil
   end
 
@@ -79,14 +81,14 @@ defmodule AshCache.Preparations.ReadThroughTest do
     limited = Ash.Query.limit(unlimited, 1)
 
     prepared = prepare_and_run(limited, opts, %{})
-    :ok = complete_read(prepared, [%{name: "a"}])
+    :ok = complete_read(prepared, [%Widget{name: "a"}])
 
     assert answer_from_cache(prepare_and_run(unlimited, opts, %{})) == nil
   end
 
   test "different arguments do not share cache entries", %{opts: opts} do
     prepared = prepare_and_run(query_for("a"), opts, %{})
-    :ok = complete_read(prepared, [%{name: "a"}])
+    :ok = complete_read(prepared, [%Widget{name: "a"}])
 
     other_name = prepare_and_run(query_for("b"), opts, %{})
     assert answer_from_cache(other_name) == nil
@@ -136,10 +138,10 @@ defmodule AshCache.Preparations.ReadThroughTest do
     second_actor = %FakeUser{id: "user-2"}
 
     prepared = prepare_and_run(query_for("a"), opts, %{actor: first_actor})
-    :ok = complete_read(prepared, [%{name: "a", owner: "user-1"}])
+    :ok = complete_read(prepared, [%Widget{name: "a", quantity: 7}])
 
     assert answer_from_cache(prepare_and_run(query_for("a"), opts, %{actor: first_actor})) ==
-             {:ok, [%{name: "a", owner: "user-1"}]}
+             {:ok, [%Widget{name: "a", quantity: 7}]}
 
     assert answer_from_cache(prepare_and_run(query_for("a"), opts, %{actor: second_actor})) ==
              nil
@@ -147,7 +149,7 @@ defmodule AshCache.Preparations.ReadThroughTest do
 
   test "bumping the cache version turns hits back into misses", %{store: store, opts: opts} do
     prepared = prepare_and_run(query_for("a"), opts, %{})
-    :ok = complete_read(prepared, [%{name: "a"}])
+    :ok = complete_read(prepared, [%Widget{name: "a"}])
 
     :ok = CacheVersion.bump(store, Widget)
 

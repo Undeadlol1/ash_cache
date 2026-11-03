@@ -51,6 +51,13 @@ where it caches two production resources.
   fails, another waiting request runs it; after `rebuild_timeout` (5 seconds
   by default) the others stop waiting and read for themselves. Cached
   generic actions do the same with their `run` call.
+- A read whose rows are computed from another resource (an aggregate, a
+  calculation over one, or a filter, sort or policy that reaches another
+  resource) is cached only when every resource it reaches is the resource
+  itself or in `clear_when_changed`; otherwise it goes to the data layer
+  every time. Related records loaded with `load` are read fresh on every
+  read and need nothing. A cache hit no longer hangs when the read loads an
+  aggregate.
 - `AshCache.Supervisor` starts one store per declared cache with no manual
   wiring beyond a single child spec.
 

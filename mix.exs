@@ -82,6 +82,7 @@ defmodule AshCache.MixProject do
           AshCache.Key,
           AshCache.CacheVersion,
           AshCache.Coalesce,
+          AshCache.Dependencies,
           AshCache.Preparations.ReadThrough,
           AshCache.Actions.RunThrough,
           AshCache.Changes.InvalidateCache,

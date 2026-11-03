@@ -184,11 +184,17 @@ In order from smallest to largest:
 
 ## Limits
 
-- **Related records can go stale.** `load` is part of the key, so an entry
-  can contain related records. A write to the related resource changes its
-  own version value, not the parent's, so the parent entry keeps serving the
-  old related records until it expires. List the related resource in
-  `clear_when_changed` to fix this.
+- **Values computed from another resource need it listed.** A cached entry
+  holds the rows and what the data layer computed with them: aggregates,
+  calculations, and the effect of a filter, sort or policy. It does not hold
+  related records: Ash loads those after the rows on every read, so they
+  are always fresh. When the computed part reaches another resource,
+  AshCache stores the result only if every resource on the way is the
+  resource itself or in `clear_when_changed` (a `many_to_many` counts its
+  join resource too). Otherwise the read goes to the data layer every time.
+  A value loaded under a name of its own (`Ash.Query.calculate/4`,
+  `Ash.Query.aggregate/4`) cannot be traced, so it is never cached. See
+  `AshCache.Dependencies`.
 - **Writes get slower.** Every write stores a new value in the cache. In one
   write-heavy test suite, caching the resource roughly doubled the suite's
   runtime. Measure before caching a resource that is written to constantly.

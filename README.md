@@ -150,9 +150,10 @@ fails to compile.
 
 - **The cache clears per resource, not per record.** Any write to a
   resource clears every cached read and generic action of that resource.
-- **Related records can go stale.** A cached read that loads related
-  records keeps the old related records until the entry expires, unless the
-  related resource is listed in `clear_when_changed`.
+- **Values computed from another resource need it listed.** Related
+  records loaded with `load` are always read fresh. A count, a sum or a
+  filter over another resource is cached only when that resource is in
+  `clear_when_changed`; otherwise the read is not cached.
 - **The default store is per server.** On several servers, a write clears
   the cache only on the server that made it. To share one cache, use the
   Nebulex adapter with Redis or a partitioned cache. See
