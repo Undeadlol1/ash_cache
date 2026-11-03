@@ -79,9 +79,10 @@ Things to know:
 - **List the join resource for many-to-many.** If posts and tags are
   linked through a `PostTag` resource, tagging a post writes a `PostTag`,
   not a `Tag`. List `PostTag`, and `Tag` too if tag names can change.
-- **Deletes done by the database are not seen.** Rows removed by
-  `ON DELETE CASCADE` never go through Ash, so they clear nothing. Delete
-  them through Ash (for example with `cascade_destroy`), or rely on `ttl`.
+- **Deletes done by the database are not seen.** If deleting a post makes
+  the database delete its comments (`ON DELETE CASCADE`), cached comment
+  reads keep the deleted comments. Add `clear_when_changed [MyApp.Blog.Post]`
+  to `Comment`, so deleting a post clears them.
 - **Foreign key names don't matter.** Only the resource is listed, so a
   relationship on any column works the same.
 - **Clearing the listed resource by hand clears the post too.**
