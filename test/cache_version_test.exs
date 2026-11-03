@@ -214,7 +214,7 @@ defmodule AshCache.CacheVersionTest do
       refute CacheVersion.current(store, SomeResource) in seen
     end
 
-    test "lands on a value that is neither the old one nor the bump's", %{store: store} do
+    test "lands on the bump's value or a new one, never an old one", %{store: store} do
       seen = bump_and_collect(store, 1)
       :ok = AshCache.Store.delete(store, counter_key())
       owner = self()
@@ -229,10 +229,15 @@ defmodule AshCache.CacheVersionTest do
       assert_receive {:read_counter, _pid, {:ok, nil}}
       :ok = CacheVersion.bump(store, SomeResource)
       bumped = CacheVersion.current(store, SomeResource)
+      # Twice: the reader looks at the counter again once it leads the
+      # replacement.
+      send(reader.pid, :proceed)
       send(reader.pid, :proceed)
       healed = Task.await(reader)
 
-      refute healed in [bumped | seen]
+      # Adopting the bump's value is fine: this reader reads the data layer
+      # after the write committed.
+      refute healed in seen
       assert CacheVersion.current(store, SomeResource) in [healed, bumped]
       refute CacheVersion.current(store, SomeResource) in seen
     end
@@ -274,7 +279,7 @@ defmodule AshCache.CacheVersionTest do
 
   describe "two writes committing concurrently" do
     setup do
-      store = :"generation_race_#{System.unique_integer([:positive])}"
+      store = :"cache_version_race_#{System.unique_integer([:positive])}"
       start_supervised!(%{id: store, start: {Cachex, :start_link, [store, []]}})
 
       previous = Process.get(:ash_cache_adapter)

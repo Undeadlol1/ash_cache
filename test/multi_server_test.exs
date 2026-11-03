@@ -25,6 +25,9 @@ defmodule AshCache.MultiServerTest do
       # Distribution needs the port mapper; starting it twice is harmless.
       {_, 0} = System.cmd("epmd", ["-daemon"])
       {:ok, _} = Node.start(:"ash_cache_test_#{System.unique_integer([:positive])}", :shortnames)
+      # Cachex stores started before the node had a name answer :nodedown
+      # while it has one, so later test files need it gone again.
+      on_exit(fn -> Node.stop() end)
     end
 
     :ok

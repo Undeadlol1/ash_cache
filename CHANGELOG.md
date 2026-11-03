@@ -34,6 +34,10 @@ where it caches two production resources.
   back entries cached before a write. A write whose new version value the
   store refuses deletes the old one instead, and logs a warning if the store
   refuses that too.
+- Requests that miss the same cached read at the same time on one server
+  share a single database read instead of each running it. If that read
+  fails, another waiting request runs it; after `rebuild_timeout` (5 seconds
+  by default) the others stop waiting and read for themselves.
 - `AshCache.Supervisor` starts one store per declared cache with no manual
   wiring beyond a single child spec.
 

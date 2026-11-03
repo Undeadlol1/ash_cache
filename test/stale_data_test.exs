@@ -1,6 +1,6 @@
 defmodule AshCache.StaleDataTest do
   @moduledoc """
-  Every way the store can lose, refuse or race the generation counter,
+  Every way the store can lose, refuse or race the cache version counter,
   driven through real reads and writes. Each test ends by proving the read
   returns the value of the last write, never one cached before it.
   """

@@ -47,7 +47,7 @@ defmodule AshCache.Test.Peer do
   @doc "Joins this node to the partitioned cache, using the Nebulex adapter."
   def start_cache do
     Application.put_env(:ash_cache, :adapter, AshCache.Store.Adapters.Nebulex)
-    {:ok, _} = Application.ensure_all_started(:nebulex_distributed)
+    {:ok, _} = Application.ensure_all_started([:ash_cache, :nebulex_distributed])
     {:ok, pid} = AshCache.Test.PartitionedCache.start_link()
     Process.unlink(pid)
     :ok
