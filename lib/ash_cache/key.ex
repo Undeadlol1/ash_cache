@@ -8,7 +8,8 @@ defmodule AshCache.Key do
     * the resource's current cache version (see `AshCache.CacheVersion`)
     * the action name
     * the whole query shape — arguments, `filter`, `sort`, `limit`, `offset`,
-      `page`, `distinct`, `select` and `load` (assembled in
+      `page`, `distinct`, `select`, `load`, `calculations` and
+      `aggregates` (assembled in
       `AshCache.Preparations.ReadThrough`). `filter` is the load-bearing one:
       the policy authorizer has already folded its filter checks into it by
       the time the key is derived, so it is what stops an unauthorized read

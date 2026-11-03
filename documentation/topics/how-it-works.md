@@ -66,7 +66,8 @@ A key is built from:
    version value of each resource listed in `clear_when_changed`,
 3. the name of the action,
 4. for a read, everything about the query that affects its result:
-   arguments, filter, sort, limit, offset, page, distinct, select and load.
+   arguments, filter, sort, limit, offset, page, distinct, select, load,
+   calculations and aggregates.
    For a generic action, its arguments,
 5. the current actor and tenant.
 

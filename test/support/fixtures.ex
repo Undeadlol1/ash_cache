@@ -107,6 +107,33 @@ defmodule AshCache.Test.CachedWidget do
   widget_actions do
     prepare(build(limit: 10))
   end
+
+  relationships do
+    has_many(:parts, AshCache.Test.Part, destination_attribute: :widget_id)
+  end
+
+  calculations do
+    calculate(:doubled, :integer, expr(quantity * 2))
+  end
+
+  aggregates do
+    count(:part_count, :parts)
+  end
+end
+
+defmodule AshCache.Test.Part do
+  @moduledoc "Related records for CachedWidget's aggregate."
+
+  use AshCache.Test.WidgetScaffold
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:widget_id, :uuid, allow_nil?: false, public?: true)
+  end
+
+  actions do
+    defaults([:read, create: :*])
+  end
 end
 
 defmodule AshCache.Test.PartiallyCachedWidget do
@@ -527,6 +554,7 @@ defmodule AshCache.Test.Domain do
       define(:get_cached_widget, action: :read, get_by: [:id])
     end
 
+    resource(AshCache.Test.Part)
     resource(AshCache.Test.PartiallyCachedWidget)
     resource(AshCache.Test.RefreshedWidget)
     resource(AshCache.Test.GuardedWidget)
