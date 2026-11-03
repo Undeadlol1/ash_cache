@@ -90,58 +90,18 @@ end
 
 On a cache hit, the action's `run` function is not called.
 
-### Clear the cache when a related resource changes
+### Clearing the cache
 
-If a cached post read includes the post's comments, list the comment
-resource on the post:
-
-```elixir
-defmodule MyApp.Blog.Post do
-  use Ash.Resource,
-    domain: MyApp.Blog,
-    extensions: [AshCache.Resource]
-
-  cache do
-    read :get_by_slug
-    clear_when_changed [MyApp.Blog.Comment]
-  end
-end
-
-defmodule MyApp.Blog.Comment do
-  use Ash.Resource,
-    domain: MyApp.Blog,
-    extensions: [AshCache.Resource]
-end
-```
-
-The comment resource needs the extension so AshCache sees its changes, but
-no `cache` block. Without the extension, `Post` fails to compile.
-
-### Clear the cache by hand
-
-When data changes without Ash, for example after an import:
-
-```elixir
-AshCache.invalidate(MyApp.Shop.Product)
-```
-
-## When the cache clears
-
-A cached result is thrown away when:
-
-1. **The resource is changed through Ash.** Creating, updating or deleting
-   any product throws away every cached product read, right away.
-2. **A resource in `clear_when_changed` is changed through Ash.**
-3. **The `ttl` runs out**, even if nothing changed.
-4. **You call `AshCache.invalidate/1`.**
-
-Changes to other resources don't count unless you list them in
-`clear_when_changed`.
+Writes through Ash clear the cache by themselves. To clear it when a
+related resource changes, or by hand after an import, see
+[When the cache clears](documentation/topics/clearing.md).
 
 ## Learn more
 
 - [Examples](documentation/topics/examples.md): the `cache` block for common
   app features, and when not to cache.
+- [When the cache clears](documentation/topics/clearing.md): what clears
+  it, related resources, and clearing by hand.
 - [Storage](documentation/topics/storage.md): the built-in stores, running
   on several nodes, and writing your own adapter.
 - [How to test with AshCache](documentation/topics/testing.md): check that a

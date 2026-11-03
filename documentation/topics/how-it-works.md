@@ -124,18 +124,8 @@ is what makes its writes replace its version value. It does not need a
 saving a comment updates the post's `updated_at` and so changes the post's
 cache key. AshCache changes the key without writing to the post.
 
-Some things follow from this:
-
-- The `[:ash_cache, :invalidate]` event is sent for the comment resource,
-  not for the post. The post's next read is a miss.
-- `AshCache.invalidate(MyApp.Blog.Comment)` clears cached post reads too.
-- It is not passed along. If `Post` lists `Comment` and `Comment` lists
-  `Author`, an author write does not clear posts. List `Author` on `Post`
-  too.
-- It is per resource too. A comment on one post clears the cached reads of
-  every post.
-- Each cached post read looks up one more version value per listed
-  resource.
+What this means for your app is in
+[When the cache clears](clearing.md#related-resources).
 
 ## Filling the cache right after a write
 
