@@ -9,6 +9,23 @@ A cache for [Ash](https://hexdocs.pm/ash) resources. Reads come back from
 memory instead of the database, and the cache clears itself when the data
 changes.
 
+## TL;DR
+
+```elixir
+defmodule MyApp.Shop.Product do
+  use Ash.Resource,
+    domain: MyApp.Shop,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :get_by_sku
+  end
+end
+```
+
+The first `get_by_sku` read goes to the database and its results are
+saved. The next reads come from the cache, not the database. That's it.
+
 ## What you get
 
 - **You pick what is cached.** List the reads to cache in a `cache` block on
