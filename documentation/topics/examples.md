@@ -272,21 +272,61 @@ balance before a transfer or a usage limit that blocks requests.
 
 ## Data from another service
 
-Exchange rates, weather or shipping prices fetched from an outside API
-through a read action with `manual` (a read you write yourself instead of
-a database query).
+An exchange rate, a weather forecast or a shipping price that your app gets
+from another company's API. In Ash such a call is usually a generic action.
 
 ```elixir
-cache do
-  read :latest, ttl: :timer.minutes(10)
+defmodule MyApp.Money.ExchangeRate do
+  use Ash.Resource,
+    domain: MyApp.Money,
+    extensions: [AshCache.Resource]
+
+  cache do
+    action :get_rate, ttl: :timer.minutes(10)
+  end
+
+  actions do
+    action :get_rate, :decimal do
+      argument :from, :string, allow_nil?: false
+      argument :to, :string, allow_nil?: false
+
+      run fn input, _context ->
+        MyApp.RatesApi.fetch(input.arguments.from, input.arguments.to)
+      end
+    end
+  end
 end
 ```
 
-A cache hit skips your `manual` read too, so the outside API is called at
-most once per `ttl` for each set of arguments. This is often the biggest
-win, because outside APIs are slow and may charge per call or limit how
-often you can call them. Nothing in your app writes this data, so the
-`ttl` is the only thing that refreshes it.
+The first call for a pair of currencies calls the API. For the next 10
+minutes, calls with the same arguments get the saved rate, and the `run`
+function is not called. This is often the biggest win, because outside APIs
+are slow and may charge per call or limit how often you can call them.
+
+Each set of arguments, each actor and each tenant gets its own entry.
+AshCache cannot see when the other service changes its data, so `ttl` is
+how old a rate can get.
+
+Errors are not saved, so a failed call is tried again next time. `nil` is
+never saved, and `[]` is saved only with `cache_empty?: true`. Ash still
+checks the resource's policies on every call, also when the answer comes
+from the cache.
+
+The action must have a return type. An action whose `run` is a Reactor
+cannot be cached; call the Reactor from a `run` function instead. If the
+call is a read action with `manual` (a read you write yourself instead of a
+database query), cache it with `read` instead of `action`.
+
+Don't cache the rate a customer is charged with. Skip the cache for that
+call:
+
+```elixir
+MyApp.Money.ExchangeRate
+|> Ash.ActionInput.for_action(:get_rate, %{from: "EUR", to: "USD"},
+  context: %{ash_cache: :bypass}
+)
+|> Ash.run_action!()
+```
 
 ## Reads that include another resource
 

@@ -12,18 +12,21 @@ where it caches two production resources.
   `cache_empty?` and `store_options` are set per read too. Reads that are
   not listed are never cached. Keys are built from the action, the whole
   query, the actor and the tenant.
+- `action :name, ttl: ...` caches a generic action, such as a call to
+  another service. On a hit its `run` is not called. Policies are still
+  checked. Keys are built from the action, its arguments, the actor and the
+  tenant; writes and `AshCache.invalidate/1` clear these entries too. An
+  action with no return type, or whose `run` is a Reactor, fails to
+  compile. Telemetry: `[:ash_cache, :action, :hit]` and
+  `[:ash_cache, :action, :miss]`.
 - `refresh` re-runs a cached read after each create or update, so the new
   value is cached before anyone asks for it.
-<<<<<<< HEAD
 - `clear_when_changed [MyApp.Blog.Comment]` throws away a resource's cached
-  reads when a listed resource is created, updated or deleted through Ash.
-  The listed resource needs the `AshCache.Resource` extension, but no
-  `cache` block: a resource may now use the extension without caching any
-  read.
-- Generation-based invalidation: a successful write bumps the resource's
-=======
+  reads and generic actions when a listed resource is created, updated or
+  deleted through Ash. The listed resource needs the `AshCache.Resource`
+  extension, but no `cache` block: a resource may now use the extension
+  without caching anything.
 - Version-based invalidation: a successful write bumps the resource's
->>>>>>> origin/per-read-ttl
   counter in `after_transaction`, so a rolled-back write cannot leave stale
   entries behind and old entries become unreachable in O(1).
 - Telemetry events `[:ash_cache, :read, :hit]`, `[:ash_cache, :read, :miss]`
@@ -46,7 +49,8 @@ where it caches two production resources.
 - Requests that miss the same cached read at the same time on one server
   share a single database read instead of each running it. If that read
   fails, another waiting request runs it; after `rebuild_timeout` (5 seconds
-  by default) the others stop waiting and read for themselves.
+  by default) the others stop waiting and read for themselves. Cached
+  generic actions do the same with their `run` call.
 - `AshCache.Supervisor` starts one store per declared cache with no manual
   wiring beyond a single child spec.
 

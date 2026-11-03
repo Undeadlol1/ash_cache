@@ -397,6 +397,68 @@ defmodule AshCache.Test.LabelledWidget do
   end
 end
 
+defmodule AshCache.Test.ExchangeRate do
+  @moduledoc """
+  Generic-action case: a call to an outside service, faked by a function that
+  reports each run to the calling process. `"FAIL"` returns an error, `"NONE"`
+  an empty list and `"NIL"` nil. Calls need an actor. A write to a Comment
+  clears the cached results.
+
+  `:probed` reports each run to the `probe` process and waits for it to send
+  `{:answer, result}` (or `{:raise, message}`), so a test controls when a
+  run ends.
+  """
+
+  use Ash.Resource,
+    domain: AshCache.Test.Domain,
+    extensions: [AshCache.Resource],
+    authorizers: [Ash.Policy.Authorizer]
+
+  cache do
+    action(:rates, ttl: to_timeout(hour: 1))
+    action(:probed, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Comment])
+  end
+
+  policies do
+    policy always() do
+      authorize_if(actor_present())
+    end
+  end
+
+  actions do
+    action :rates, {:array, :float} do
+      allow_nil?(true)
+      argument(:currency, :string, allow_nil?: false)
+
+      run(fn input, _context ->
+        currency = input.arguments.currency
+        send(self(), {:rates_ran, currency})
+
+        case currency do
+          "FAIL" -> {:error, "service down"}
+          "NONE" -> {:ok, []}
+          "NIL" -> {:ok, nil}
+          _other -> {:ok, [1.5]}
+        end
+      end)
+    end
+
+    action :probed, :integer do
+      argument(:probe, :term, allow_nil?: false)
+
+      run(fn input, _context ->
+        send(input.arguments.probe, {:action_run, self()})
+
+        receive do
+          {:answer, result} -> result
+          {:raise, message} -> raise message
+        end
+      end)
+    end
+  end
+end
+
 defmodule AshCache.Test.Comment do
   @moduledoc """
   Changed-resource case: caches nothing itself. It uses the extension only so
@@ -480,6 +542,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.RefreshedTenantWidget)
     resource(AshCache.Test.MapArgumentWidget)
     resource(AshCache.Test.LabelledWidget)
+    resource(AshCache.Test.ExchangeRate)
     resource(AshCache.Test.Comment)
     resource(AshCache.Test.Post)
     resource(AshCache.Test.Feed)

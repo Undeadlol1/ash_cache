@@ -83,6 +83,7 @@ defmodule AshCache.MixProject do
           AshCache.CacheVersion,
           AshCache.Coalesce,
           AshCache.Preparations.ReadThrough,
+          AshCache.Actions.RunThrough,
           AshCache.Changes.InvalidateCache,
           AshCache.Resource.Transformers.AttachCacheHooks,
           AshCache.Resource.Verifiers.ValidateCacheBlock

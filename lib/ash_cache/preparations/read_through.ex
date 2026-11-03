@@ -31,7 +31,6 @@ defmodule AshCache.Preparations.ReadThrough do
 
   alias AshCache.CacheVersion
   alias AshCache.Coalesce
-  alias AshCache.Info
   alias AshCache.Key
   alias AshCache.Store
 
@@ -134,18 +133,7 @@ defmodule AshCache.Preparations.ReadThrough do
 
   defp build_key(query, store, opts, context) do
     version =
-      case Keyword.get(opts, :clear_when_changed, []) do
-        [] ->
-          CacheVersion.current(store, query.resource)
-
-        # A write to a listed resource changes that resource's version, in its
-        # own store, so keying on it clears this resource's reads too.
-        others ->
-          [
-            CacheVersion.current(store, query.resource)
-            | Enum.map(others, &CacheVersion.current(Info.cache_store!(&1), &1))
-          ]
-      end
+      CacheVersion.for_key(store, query.resource, Keyword.get(opts, :clear_when_changed, []))
 
     # The actor is read from the query at hook time: one passed only to
     # `Ash.read/2` is applied after preparations run, so the preparation

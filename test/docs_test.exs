@@ -7,7 +7,9 @@ defmodule AshCache.DocsTest do
   # these, and publishing a module that was meant to stay internal.
   @published_modules ~w[
     AshCache
+    AshCache.Actions.RunThrough
     AshCache.CacheVersion
+    AshCache.CachedAction
     AshCache.CachedRead
     AshCache.Changes.InvalidateCache
     AshCache.Coalesce

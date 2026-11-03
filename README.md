@@ -84,6 +84,11 @@ for data that is rarely written: a write doesn't delete old results from
 memory, it only stops them being used, and they stay in memory until
 their `ttl` runs out.
 
+Generic actions, such as a call to another company's API, are cached the
+same way with `action :get_rate, ttl: :timer.minutes(10)`. On a cache hit
+the action's `run` function is not called. See "Data from another service"
+in [Examples](documentation/topics/examples.md).
+
 The [Examples](documentation/topics/examples.md) page shows the `cache`
 block for common app features.
 
@@ -144,7 +149,7 @@ fails to compile.
 ## Limits
 
 - **The cache clears per resource, not per record.** Any write to a
-  resource clears every cached read of that resource.
+  resource clears every cached read and generic action of that resource.
 - **Related records can go stale.** A cached read that loads related
   records keeps the old related records until the entry expires, unless the
   related resource is listed in `clear_when_changed`.

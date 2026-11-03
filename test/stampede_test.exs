@@ -171,4 +171,72 @@ defmodule AshCache.StampedeTest do
     answer(next_data_layer_read(), 8)
     assert {:ok, [%{value: 8}]} = Task.await(task)
   end
+
+  describe "generic actions" do
+    alias AshCache.Test.ExchangeRate
+
+    defp start_calls(count) do
+      test = self()
+
+      for _ <- 1..count do
+        Task.async(fn ->
+          Process.put(:ash_cache_adapter, Cachex)
+
+          # Ash re-raises an exception from `run`; returned so the task survives.
+          try do
+            ExchangeRate
+            |> Ash.ActionInput.for_action(:probed, %{probe: test}, actor: %{id: "alice"})
+            |> Ash.run_action()
+          rescue
+            error -> {:raised, error}
+          end
+        end)
+      end
+    end
+
+    defp next_run do
+      assert_receive {:action_run, pid}, 2_000
+      pid
+    end
+
+    test "many identical misses make one run and all get its result" do
+      tasks = start_calls(@readers)
+
+      leader = next_run()
+      waiting(@readers - 1)
+      send(leader, {:answer, {:ok, 1}})
+
+      assert Enum.all?(Task.await_many(tasks), &(&1 == {:ok, 1}))
+      refute_receive {:action_run, _}, 100
+      assert Enum.frequencies(Events.drain()) == %{miss: 1, hit: @readers - 1}
+    end
+
+    test "a failed run: its caller gets the error, one waiter runs again for the rest" do
+      tasks = start_calls(@readers)
+
+      leader = next_run()
+      waiting(@readers - 1)
+      send(leader, {:answer, {:error, "service down"}})
+      send(next_run(), {:answer, {:ok, 2}})
+
+      results = Task.await_many(tasks)
+      assert Enum.count(results, &match?({:error, _}, &1)) == 1
+      assert Enum.count(results, &(&1 == {:ok, 2})) == @readers - 1
+      refute_receive {:action_run, _}, 100
+    end
+
+    test "a run that raises: one waiter runs again for the rest" do
+      tasks = start_calls(@readers)
+
+      leader = next_run()
+      waiting(@readers - 1)
+      send(leader, {:raise, "boom"})
+      send(next_run(), {:answer, {:ok, 3}})
+
+      results = Task.await_many(tasks)
+      assert Enum.count(results, &match?({:raised, _}, &1)) == 1
+      assert Enum.count(results, &(&1 == {:ok, 3})) == @readers - 1
+      refute_receive {:action_run, _}, 100
+    end
+  end
 end

@@ -4,6 +4,8 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
     * each cached read action gets the `AshCache.Preparations.ReadThrough`
       preparation, appended after any preparations the action declares
+    * each cached generic action has its `run` replaced by
+      `AshCache.Actions.RunThrough`, which calls the original on a miss
     * every create/update/destroy gets the `AshCache.Changes.InvalidateCache`
       change, so invalidation is a property of the resource — an action added
       later cannot forget it
@@ -31,6 +33,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     cached_reads =
       for %AshCache.CachedRead{} = read <- entities, into: %{}, do: {read.name, read}
 
+    cached_actions =
+      for %AshCache.CachedAction{} = cached <- entities, into: %{}, do: {cached.name, cached}
+
     dsl_state
     |> Transformer.get_entities([:actions])
     |> Enum.reduce(dsl_state, fn action, dsl_state ->
@@ -47,6 +52,20 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
           ]
 
           attach_preparation(dsl_state, action, preparation_opts)
+
+        action.type == :action and is_map_key(cached_actions, action.name) ->
+          cached = cached_actions[action.name]
+
+          run_opts = [
+            run: action.run,
+            store: store,
+            ttl: AshCache.CachedRead.ttl(cached, block_ttl),
+            cache_empty?: cached.cache_empty?,
+            store_options: cached.store_options,
+            clear_when_changed: clear_when_changed
+          ]
+
+          replace_action(dsl_state, %{action | run: {AshCache.Actions.RunThrough, run_opts}})
 
         action.type in @write_types ->
           attach_change(dsl_state, action, store, refreshes)

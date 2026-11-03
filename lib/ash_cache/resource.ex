@@ -1,6 +1,6 @@
 defmodule AshCache.Resource do
   @moduledoc """
-  Caches the read actions you declare, each with its own lifetime.
+  Caches the read and generic actions you declare, each with its own lifetime.
 
       defmodule MyApp.Shop.Product do
         use Ash.Resource,
@@ -9,6 +9,7 @@ defmodule AshCache.Resource do
 
         cache do
           read :get_by_sku, ttl: :timer.hours(1)
+          action :exchange_rate, ttl: :timer.minutes(10)
         end
       end
 
@@ -20,7 +21,12 @@ defmodule AshCache.Resource do
   reads after the transaction commits (see `AshCache.Changes.InvalidateCache`).
   So does a write to any resource listed in `clear_when_changed`.
 
-  Reads without a `read` entry are never cached.
+  Each `action` caches a generic action, keyed by the action, its arguments,
+  the actor and the tenant, with the same `ttl` rules. On a hit its `run` is
+  not called (see `AshCache.Actions.RunThrough`). Writes clear these entries
+  too.
+
+  Actions without a `read` or `action` entry are never cached.
   """
 
   @read %Spark.Dsl.Entity{
@@ -29,6 +35,13 @@ defmodule AshCache.Resource do
     target: AshCache.CachedRead,
     args: [:name],
     schema: AshCache.CachedRead.schema()
+  }
+  @action %Spark.Dsl.Entity{
+    name: :action,
+    describe: "Cache this generic action, with its own lifetime and settings.",
+    target: AshCache.CachedAction,
+    args: [:name],
+    schema: AshCache.CachedAction.schema()
   }
   @refresh %Spark.Dsl.Entity{
     name: :refresh,
@@ -42,8 +55,8 @@ defmodule AshCache.Resource do
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Which reads to cache, where, and for how long.",
-    entities: [@read, @refresh],
+    describe: "Which reads and generic actions to cache, where, and for how long.",
+    entities: [@read, @action, @refresh],
     schema: [
       store: [
         type: :atom,
@@ -56,7 +69,7 @@ defmodule AshCache.Resource do
         default: :timer.minutes(5),
         doc: """
         Milliseconds a cached entry lives before it expires, for every `read`
-        that does not set its own `ttl`. `:infinity` never expires; it is never
+        and `action` that does not set its own `ttl`. `:infinity` never expires; it is never
         the default.
         """
       ],
@@ -65,7 +78,7 @@ defmodule AshCache.Resource do
         default: [],
         doc: """
         Other resources whose create, update or destroy also clears this
-        resource's cached reads, e.g. `clear_when_changed [MyApp.Blog.Comment]`.
+        resource's cached reads and generic actions, e.g. `clear_when_changed [MyApp.Blog.Comment]`.
         Each one must use the `AshCache.Resource` extension, even if it caches
         nothing itself.
         """

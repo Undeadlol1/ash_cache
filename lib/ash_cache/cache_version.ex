@@ -41,6 +41,22 @@ defmodule AshCache.CacheVersion do
   alias AshCache.Coalesce
   alias AshCache.Store
 
+  @doc """
+  The version part of a cache key: the resource's own version, plus the
+  version of each resource in its `clear_when_changed` list. A write to a
+  listed resource changes that resource's version, in its own store, so
+  keying on it clears this resource's entries too.
+  """
+  @spec for_key(atom(), module(), [module()]) :: term()
+  def for_key(store, resource, []), do: current(store, resource)
+
+  def for_key(store, resource, clear_when_changed) do
+    [
+      current(store, resource)
+      | Enum.map(clear_when_changed, &current(AshCache.Info.cache_store!(&1), &1))
+    ]
+  end
+
   @doc "An opaque value: equal between two calls only while no write happened in between."
   @spec current(atom(), module()) :: term()
   def current(store, resource) do

@@ -15,11 +15,13 @@ defmodule AshCache.CachedRead do
         }
 
   @doc """
-  The ttl a cached read actually uses: its own, else the block's.
+  The ttl a cached read or generic action actually uses: its own, else the
+  block's.
   """
-  @spec ttl(t(), pos_integer() | :infinity) :: pos_integer() | :infinity
-  def ttl(%__MODULE__{ttl: nil}, block_ttl), do: block_ttl
-  def ttl(%__MODULE__{ttl: ttl}, _block_ttl), do: ttl
+  @spec ttl(t() | AshCache.CachedAction.t(), pos_integer() | :infinity) ::
+          pos_integer() | :infinity
+  def ttl(%{ttl: nil}, block_ttl), do: block_ttl
+  def ttl(%{ttl: ttl}, _block_ttl), do: ttl
 
   @doc false
   def schema do
