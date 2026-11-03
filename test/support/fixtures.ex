@@ -547,7 +547,7 @@ defmodule AshCache.Test.ShippingQuote do
   A slow, pure module calculation, faked: each real run sends
   `{:calculated, names}` to the calling process so a test can count runs.
   It reads the record's name and quantity, its parcels and their count, and
-  the `:rate` argument; with `parcels?: false` it skips the parcels. A
+  the `:rate` argument. A
   shipment named `"nil"` quotes nil, `"none"` quotes [], and `"fail"` fails
   the whole batch.
   """
@@ -555,9 +555,7 @@ defmodule AshCache.Test.ShippingQuote do
   use Ash.Resource.Calculation
 
   @impl true
-  def load(_query, opts, _context) do
-    if Keyword.get(opts, :parcels?, true), do: [:parcel_count, parcels: [:name]], else: []
-  end
+  def load(_query, _opts, _context), do: [:parcel_count, parcels: [:name]]
 
   @impl true
   def calculate(records, opts, context) do
@@ -566,31 +564,24 @@ defmodule AshCache.Test.ShippingQuote do
     if Enum.any?(records, &(&1.name == "fail")) do
       {:error, "quote service down"}
     else
-      {:ok, Enum.map(records, &price(&1, context.arguments[:rate] || 1, opts))}
+      {:ok, Enum.map(records, &price(&1, context.arguments[:rate] || 1))}
     end
   end
 
-  defp price(%{name: "nil"}, _rate, _opts), do: nil
-  defp price(%{name: "none"}, _rate, _opts), do: []
+  defp price(%{name: "nil"}, _rate), do: nil
+  defp price(%{name: "none"}, _rate), do: []
 
-  defp price(shipment, rate, opts) do
-    base = "#{shipment.name}:#{shipment.quantity * rate}"
-
-    if Keyword.get(opts, :parcels?, true) do
-      parcels = shipment.parcels |> Enum.map(& &1.name) |> Enum.sort() |> Enum.join("+")
-      "#{base}:#{shipment.parcel_count}:#{parcels}"
-    else
-      base
-    end
+  defp price(shipment, rate) do
+    parcels = shipment.parcels |> Enum.map(& &1.name) |> Enum.sort() |> Enum.join("+")
+    "#{shipment.name}:#{shipment.quantity * rate}:#{shipment.parcel_count}:#{parcels}"
   end
 end
 
 defmodule AshCache.Test.Shipment do
   @moduledoc """
-  Calculation-caching case: `:quote` is cached per record, `:uncached_quote`
-  runs the same calculation without the cache, and `:label` is the cached
-  variant that loads nothing. `:cached_read` caches the records themselves
-  too.
+  Calculation-caching case: `:quote` is cached per record and
+  `:uncached_quote` runs the same calculation without the cache.
+  `:cached_read` caches the records themselves too.
   """
 
   use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
@@ -598,7 +589,6 @@ defmodule AshCache.Test.Shipment do
   cache do
     read(:cached_read, ttl: to_timeout(hour: 1))
     calculation(:quote, ttl: to_timeout(hour: 1))
-    calculation(:label)
   end
 
   attributes do
@@ -624,8 +614,6 @@ defmodule AshCache.Test.Shipment do
     calculate :uncached_quote, :term, AshCache.Test.ShippingQuote do
       argument(:rate, :integer, default: 1)
     end
-
-    calculate(:label, :term, {AshCache.Test.ShippingQuote, parcels?: false})
   end
 
   actions do

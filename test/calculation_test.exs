@@ -232,22 +232,20 @@ defmodule AshCache.CalculationTest do
     assert runs() == [["box"]]
   end
 
-  # `:label` loads nothing: a cached read hit that must load an aggregate or
-  # relationship never returns (a separate, known problem of cached reads).
   test "is cached when loaded by a cached read" do
     shipment("box")
 
     for _ <- 1..2 do
-      assert [%{label: "box:1"}] =
+      assert [%{quote: "box:1:0:"}] =
                Shipment
                |> Ash.Query.for_read(:cached_read)
-               |> Ash.Query.load(:label)
+               |> Ash.Query.load(:quote)
                |> Ash.read!()
     end
 
     assert runs() == [["box"]]
     assert_received {:ash_cache, :hit, %{action: :cached_read}}
-    assert_received {:ash_cache, :hit, %{calculation: :label}}
+    assert_received {:ash_cache, :hit, %{calculation: :quote}}
   end
 
   test "a calculation not in the cache block is never cached" do
