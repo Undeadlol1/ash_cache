@@ -31,7 +31,7 @@ def deps do
 end
 ```
 
-Cachex is the default store. To use another store, see the Storage guide.
+Cachex is the default store. To use another store, see the [Storage](documentation/topics/storage.md) guide.
 
 Add the supervisor to your application. It starts the cache stores:
 
