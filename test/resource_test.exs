@@ -8,12 +8,13 @@ defmodule AshCache.ResourceTest do
     assert AshCache.Resource.Verifiers.ValidateCacheBlock in AshCache.Resource.verifiers()
   end
 
-  test "the cache block carries the store and the default ttl" do
+  test "the cache block carries the store, the default ttl and the resources that clear it" do
     [section] = AshCache.Resource.sections()
 
     assert section.name == :cache
-    assert Keyword.keys(section.schema) == [:store, :ttl]
+    assert Keyword.keys(section.schema) == [:store, :ttl, :clear_when_changed]
     assert section.schema[:ttl][:default] == 300_000
+    assert section.schema[:clear_when_changed][:default] == []
     assert section.schema[:store][:default] == :ash_cache
     assert Enum.map(section.entities, & &1.name) == [:read, :refresh]
   end

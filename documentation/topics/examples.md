@@ -10,8 +10,9 @@ for 5 minutes, or for the `cache` block's `ttl` if you set one.
 Two things apply to every example:
 
 - A cached result is thrown away when the resource is changed through Ash,
+  when a resource listed in its `clear_when_changed` is changed through Ash,
   when its `ttl` runs out, or when you call `AshCache.invalidate/1`.
-  Changes to other resources don't throw it away.
+  Changes to other, unlisted resources don't throw it away.
 - The default store keeps each server's cache in its own memory. If your
   app runs on several servers, a write clears the cache only on the server
   that made it, and the others serve the old result until `ttl` runs out.
@@ -262,7 +263,9 @@ end
 Numbers like these are usually counts or sums of other records, loaded
 with Ash aggregates. Writes to those other records do not clear this
 resource's cache, so the numbers are up to `ttl` old. Pick the `ttl` you
-would be happy to print as "updated every minute".
+would be happy to print as "updated every minute". If the other records
+change rarely, list them in `clear_when_changed` instead (see "Team
+dashboard and its members" below).
 
 Don't cache numbers that someone acts on right away, such as an account
 balance before a transfer or a usage limit that blocks requests.
@@ -284,6 +287,129 @@ most once per `ttl` for each set of arguments. This is often the biggest
 win, because outside APIs are slow and may charge per call or limit how
 often you can call them. Nothing in your app writes this data, so the
 `ttl` is the only thing that refreshes it.
+
+## Reads that include another resource
+
+The sections below cache reads that `load` records of another resource.
+Without `clear_when_changed`, a change to those records shows up only when
+`ttl` runs out. With it, the change throws away the cached reads right away.
+
+Each resource listed in `clear_when_changed` needs the extension, even if it
+caches nothing:
+
+```elixir
+defmodule MyApp.Blog.Comment do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
+end
+```
+
+Clearing is per resource, here too: a new comment on one post throws away
+the cached reads of every post. If the listed resource is written to all
+the time, most reads will miss. Measure first.
+
+## A blog post with its comments
+
+A post page that shows the post and its comments.
+
+```elixir
+defmodule MyApp.Blog.Post do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :get_by_slug_with_comments, ttl: :timer.hours(1)
+    clear_when_changed [MyApp.Blog.Comment]
+  end
+end
+```
+
+A new, edited or deleted comment shows up on the next page view instead of
+an hour later.
+
+## A product with its prices
+
+A product page that loads the product's prices, kept as their own records
+(one per currency or per customer group).
+
+```elixir
+cache do
+  read :get_by_sku, ttl: :timer.hours(1)
+  clear_when_changed [MyApp.Shop.Price]
+end
+```
+
+A price change throws away the cached product page, so visitors see the new
+price on their next view. On several servers the other servers still show
+the old price until `ttl` runs out, so read the price you charge with the
+cache skipped.
+
+## A customer's order list with the items in each order
+
+A "My orders" page that lists a customer's orders and the items in each.
+
+```elixir
+defmodule MyApp.Shop.Order do
+  use Ash.Resource,
+    domain: MyApp.Shop,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :for_customer, ttl: :timer.minutes(30)
+    clear_when_changed [MyApp.Shop.OrderItem]
+  end
+end
+```
+
+Adding, changing or removing an item throws away
+the cached list. Each customer still gets their own entry, because the
+actor is part of the key.
+
+## A user profile with its avatar
+
+A profile card shown next to every comment and message, with the avatar
+stored as its own resource.
+
+```elixir
+cache do
+  read :get_profile, ttl: :timer.hours(6)
+  clear_when_changed [MyApp.Accounts.Avatar]
+end
+```
+
+A new avatar shows up right away instead of hours later.
+
+## Team dashboard and its members
+
+A dashboard that shows a team with its member count and member list.
+
+```elixir
+cache do
+  read :dashboard, ttl: :timer.hours(1)
+  clear_when_changed [MyApp.Teams.Membership]
+end
+```
+
+People join and leave teams a few times a day, so a long `ttl` is fine:
+each join or leave throws away the cached dashboard.
+
+## A restaurant menu with its dishes
+
+A menu page that lists the dishes on the menu, each a record of its own.
+
+```elixir
+cache do
+  read :get_with_items, ttl: :timer.hours(12)
+  clear_when_changed [MyApp.Menus.MenuItem]
+end
+```
+
+A dish that sold out or changed price shows up right away. A dish
+written by the nightly import does not, because the import does not go
+through Ash: call `AshCache.invalidate(MyApp.Menus.MenuItem)` after it.
+That throws away the cached menus too.
 
 ## Data that also changes outside Ash
 

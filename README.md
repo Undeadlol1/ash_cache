@@ -89,18 +89,44 @@ block for common app features.
 
 ## When cached results are thrown away
 
-A cached result is thrown away in three cases:
+A cached result is thrown away in four cases:
 
 1. **The resource is changed through Ash.** Creating, updating or deleting
    any product throws away every cached product read, right away.
-2. **The `ttl` runs out**, even if nothing changed.
-3. **You call `AshCache.invalidate(MyApp.Shop.Product)`.** Use this when the
+2. **A resource listed in `clear_when_changed` is changed through Ash.**
+   See below.
+3. **The `ttl` runs out**, even if nothing changed.
+4. **You call `AshCache.invalidate(MyApp.Shop.Product)`.** Use this when the
    data changed without Ash, for example after an import.
 
-Changes to other resources don't count. If a cached post read includes the
-post's comments, adding a comment doesn't throw it away. The comments
-update when the `ttl` runs out, or sooner if you call
-`AshCache.invalidate(MyApp.Blog.Post)` after creating a comment.
+Changes to other resources don't count unless you list them. If a cached
+post read includes the post's comments, list the comment resource on the
+post:
+
+```elixir
+defmodule MyApp.Blog.Post do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :get_by_slug, ttl: :timer.hours(1)
+    clear_when_changed [MyApp.Blog.Comment]
+  end
+end
+
+defmodule MyApp.Blog.Comment do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
+end
+```
+
+Now creating, updating or deleting any comment throws away every cached
+post read, the same way a change to a post does. The comment resource
+needs the `AshCache.Resource` extension so AshCache sees its changes. It
+does not need a `cache` block. If it does not have the extension, `Post`
+fails to compile.
 
 ## Learn more
 
@@ -120,8 +146,8 @@ update when the `ttl` runs out, or sooner if you call
 - **The cache clears per resource, not per record.** Any write to a
   resource clears every cached read of that resource.
 - **Related records can go stale.** A cached read that loads related
-  records keeps the old related records until the entry expires. Keep
-  `load` off cached reads, or choose a short `ttl`.
+  records keeps the old related records until the entry expires, unless the
+  related resource is listed in `clear_when_changed`.
 - **The default store is per server.** On several servers, a write clears
   the cache only on the server that made it. To share one cache, use the
   Nebulex adapter with Redis or a partitioned cache. See
