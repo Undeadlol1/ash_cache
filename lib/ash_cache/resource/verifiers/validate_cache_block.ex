@@ -9,6 +9,10 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
   to cache) or whose `run` is a Reactor (Ash runs a Reactor itself, so
   AshCache cannot put itself in front of it).
 
+  A cached calculation must exist and be a module calculation with
+  `calculate/3`. An expression calculation is rejected: it already runs in
+  the database, and cached reads already hold its result.
+
   A resource may cache nothing: it can use the extension only so its writes
   clear the reads of resources that list it in `clear_when_changed`.
   """
@@ -24,11 +28,14 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
     reads = for %AshCache.CachedRead{name: name} <- entities, do: name
     actions = for %AshCache.CachedAction{name: name} <- entities, do: name
     refreshes = for %AshCache.Refresh{read: read} <- entities, do: read
+    calculations = for %AshCache.CachedCalculation{name: name} <- entities, do: name
 
     with :ok <- verify_action_type(dsl_state, :read, reads, "read actions"),
          :ok <- verify_action_type(dsl_state, :action, actions, "generic actions"),
          :ok <- verify_unique(dsl_state, :read, reads),
          :ok <- verify_unique(dsl_state, :action, actions),
+         :ok <- verify_unique(dsl_state, :calculation, calculations),
+         :ok <- verify_calculations(dsl_state, calculations),
          :ok <- verify_generic_actions(dsl_state, actions),
          :ok <- verify_refreshes(dsl_state, reads, refreshes) do
       verify_clear_when_changed(dsl_state)
@@ -92,6 +99,45 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
           nil
       end
     end)
+  end
+
+  defp verify_calculations(dsl_state, names) do
+    known = Verifier.get_entities(dsl_state, [:calculations])
+
+    case Enum.reject(names, fn name -> Enum.any?(known, &(&1.name == name)) end) do
+      [] ->
+        known
+        |> Enum.filter(&(&1.name in names))
+        |> Enum.find_value(:ok, &verify_calculation_module(dsl_state, &1))
+
+      unknown ->
+        dsl_error(dsl_state, [:cache, :calculation], """
+        `calculation` names calculations that are not calculations on this resource: #{inspect(unknown)}.
+        Known calculations: #{inspect(known |> Enum.map(& &1.name) |> Enum.sort())}.
+        """)
+    end
+  end
+
+  defp verify_calculation_module(dsl_state, calculation) do
+    {AshCache.Calculations.CalculateThrough, opts} = calculation.calculation
+    {module, _calc_opts} = opts[:calculation]
+    Code.ensure_compiled!(module)
+
+    cond do
+      module.has_expression?() ->
+        dsl_error(dsl_state, [:cache, :calculation], """
+        `calculation #{inspect(calculation.name)}` is an expression calculation. It already runs in the database, \
+        and cached reads already hold its result. Remove it from the `cache` block.
+        """)
+
+      not function_exported?(module, :calculate, 3) ->
+        dsl_error(dsl_state, [:cache, :calculation], """
+        `calculation #{inspect(calculation.name)}` has no `calculate/3`, so there is nothing to cache.
+        """)
+
+      true ->
+        nil
+    end
   end
 
   defp reactor?({module, _opts}), do: reactor?(module)

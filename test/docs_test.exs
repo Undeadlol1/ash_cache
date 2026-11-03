@@ -8,8 +8,10 @@ defmodule AshCache.DocsTest do
   @published_modules ~w[
     AshCache
     AshCache.Actions.RunThrough
+    AshCache.Calculations.CalculateThrough
     AshCache.CacheVersion
     AshCache.CachedAction
+    AshCache.CachedCalculation
     AshCache.CachedRead
     AshCache.Changes.InvalidateCache
     AshCache.Coalesce

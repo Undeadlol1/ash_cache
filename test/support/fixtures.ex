@@ -542,6 +542,118 @@ defmodule AshCache.Test.SelfListedWidget do
   widget_actions()
 end
 
+defmodule AshCache.Test.ShippingQuote do
+  @moduledoc """
+  A slow, pure module calculation, faked: each real run sends
+  `{:calculated, names}` to the calling process so a test can count runs.
+  It reads the record's name and quantity, its parcels and their count, and
+  the `:rate` argument; with `parcels?: false` it skips the parcels. A
+  shipment named `"nil"` quotes nil, `"none"` quotes [], and `"fail"` fails
+  the whole batch.
+  """
+
+  use Ash.Resource.Calculation
+
+  @impl true
+  def load(_query, opts, _context) do
+    if Keyword.get(opts, :parcels?, true), do: [:parcel_count, parcels: [:name]], else: []
+  end
+
+  @impl true
+  def calculate(records, opts, context) do
+    send(self(), {:calculated, Enum.map(records, & &1.name)})
+
+    if Enum.any?(records, &(&1.name == "fail")) do
+      {:error, "quote service down"}
+    else
+      {:ok, Enum.map(records, &price(&1, context.arguments[:rate] || 1, opts))}
+    end
+  end
+
+  defp price(%{name: "nil"}, _rate, _opts), do: nil
+  defp price(%{name: "none"}, _rate, _opts), do: []
+
+  defp price(shipment, rate, opts) do
+    base = "#{shipment.name}:#{shipment.quantity * rate}"
+
+    if Keyword.get(opts, :parcels?, true) do
+      parcels = shipment.parcels |> Enum.map(& &1.name) |> Enum.sort() |> Enum.join("+")
+      "#{base}:#{shipment.parcel_count}:#{parcels}"
+    else
+      base
+    end
+  end
+end
+
+defmodule AshCache.Test.Shipment do
+  @moduledoc """
+  Calculation-caching case: `:quote` is cached per record, `:uncached_quote`
+  runs the same calculation without the cache, and `:label` is the cached
+  variant that loads nothing. `:cached_read` caches the records themselves
+  too.
+  """
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:cached_read, ttl: to_timeout(hour: 1))
+    calculation(:quote, ttl: to_timeout(hour: 1))
+    calculation(:label)
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:name, :string, allow_nil?: false, public?: true)
+    attribute(:quantity, :integer, allow_nil?: false, default: 1, public?: true)
+    attribute(:note, :string, public?: true)
+  end
+
+  relationships do
+    has_many(:parcels, AshCache.Test.Parcel)
+  end
+
+  aggregates do
+    count(:parcel_count, :parcels)
+  end
+
+  calculations do
+    calculate :quote, :term, AshCache.Test.ShippingQuote do
+      argument(:rate, :integer, default: 1)
+    end
+
+    calculate :uncached_quote, :term, AshCache.Test.ShippingQuote do
+      argument(:rate, :integer, default: 1)
+    end
+
+    calculate(:label, :term, {AshCache.Test.ShippingQuote, parcels?: false})
+  end
+
+  actions do
+    defaults([:read, create: :*, update: :*])
+
+    read(:cached_read)
+  end
+end
+
+defmodule AshCache.Test.Parcel do
+  @moduledoc "A shipment's parcel, so a calculation can depend on related records."
+
+  use AshCache.Test.WidgetScaffold
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:name, :string, allow_nil?: false, public?: true)
+  end
+
+  relationships do
+    belongs_to(:shipment, AshCache.Test.Shipment, attribute_writable?: true, public?: true)
+  end
+
+  actions do
+    defaults([:read, :destroy, create: :*, update: :*])
+  end
+end
+
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
@@ -575,5 +687,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.Post)
     resource(AshCache.Test.Feed)
     resource(AshCache.Test.SelfListedWidget)
+    resource(AshCache.Test.Shipment)
+    resource(AshCache.Test.Parcel)
   end
 end

@@ -16,7 +16,7 @@ defmodule AshCache.ResourceTest do
     assert section.schema[:ttl][:default] == 300_000
     assert section.schema[:clear_when_changed][:default] == []
     assert section.schema[:store][:default] == :ash_cache
-    assert Enum.map(section.entities, & &1.name) == [:read, :action, :refresh]
+    assert Enum.map(section.entities, & &1.name) == [:read, :action, :calculation, :refresh]
   end
 
   test "a read entry has an optional ttl and defaults the rest" do

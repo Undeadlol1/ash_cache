@@ -17,6 +17,10 @@ defmodule AshCache.Key do
       queries apart
     * for a generic action, only its arguments take the place of the query
       shape (`AshCache.Actions.RunThrough`)
+    * for a calculation, `{:calculation, name}` takes the place of the
+      action name, and the shape is one record's attributes, the fields the
+      calculation loads and its arguments
+      (`AshCache.Calculations.CalculateThrough`); there is no version
     * the actor and tenant, so cached results never leak across actors
       or tenants
   """
@@ -25,7 +29,7 @@ defmodule AshCache.Key do
           {:ash_cache, resource :: module(), version :: term(), action :: atom(),
            query_shape :: term(), actor_ref :: term(), tenant_ref :: term()}
 
-  @spec build(module(), atom(), map(), term(), keyword()) :: t()
+  @spec build(module(), atom() | {:calculation, atom()}, map(), term(), keyword()) :: t()
   def build(resource, action_name, query_shape, version, opts) do
     {:ash_cache, resource, version, action_name, normalize(query_shape),
      actor_ref(Keyword.get(opts, :actor)), tenant_ref(Keyword.get(opts, :tenant))}
