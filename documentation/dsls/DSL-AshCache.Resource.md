@@ -40,7 +40,7 @@ Which reads to cache, where, and for how long.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. |
+| [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. With `AshCache.Store.Adapters.Nebulex`, the Nebulex cache module. |
 | [`ttl`](#cache-ttl){: #cache-ttl } | `pos_integer \| :infinity` | `300000` | Milliseconds a cached entry lives before it expires, for every `read` that does not set its own `ttl`. `:infinity` never expires; it is never the default. |
 
 

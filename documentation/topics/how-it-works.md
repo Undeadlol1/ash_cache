@@ -14,6 +14,26 @@ the cache.
 - If it is not found, the read runs as normal. If it returned at least one
   record, the result is saved under that key.
 
+### When many requests miss at once
+
+When a popular entry runs out or is cleared, many requests can miss it at
+the same moment. Only the first one asks the database. The others on the
+same server wait for its records and return those. They share only when
+their keys are equal, so two users, or two tenants, never get each other's
+records.
+
+If that first request fails or its process dies, one of the waiting
+requests asks the database instead. If it takes longer than 5 seconds, the
+waiting requests stop waiting and each ask the database themselves. Change
+the limit with:
+
+```elixir
+config :ash_cache, rebuild_timeout: :timer.seconds(10)
+```
+
+This happens on each server separately, whatever the store: with several
+servers, each one asks the database at most once per key at a time.
+
 Empty results are not saved by default. Otherwise a record that does not
 exist yet would keep being reported as missing until the entry expired.
 Set `cache_empty?: true` on the `read` to save them anyway.
@@ -48,6 +68,11 @@ a new one that has never been used. Every key built with the old value is
 now never looked up again, so all
 of that resource's cached reads are gone in one step, however many there
 were. The old entries are not deleted; they expire on their own.
+
+If the store loses the value (it was evicted, or the store restarted),
+AshCache picks a new one too. Values are random and never reused, so a lost
+value can only cause misses, never bring back old entries. See
+[Storage](storage.md#a-lost-entry-never-brings-back-old-data).
 
 The value is replaced after the database transaction commits, not before.
 A write that is rolled back never reaches that point, so it cannot leave

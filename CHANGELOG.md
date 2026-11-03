@@ -26,6 +26,18 @@ where it caches two production resources.
   unless you set another adapter.
 - Store adapters: `Cachex` (default), `ProcessLocal` (per-process isolation
   for async tests) and `Noop`, behind `AshCache.Store.Adapter`.
+- `AshCache.Store.Adapters.Nebulex` stores entries in the app's own Nebulex
+  cache, so several servers can share one cache (Redis, partitioned,
+  replicated). Nebulex is an optional dependency.
+- A version value the store loses (eviction, restart, a server leaving a
+  distributed cache) is replaced by a new random one, so it can never bring
+  back entries cached before a write. A write whose new version value the
+  store refuses deletes the old one instead, and logs a warning if the store
+  refuses that too.
+- Requests that miss the same cached read at the same time on one server
+  share a single database read instead of each running it. If that read
+  fails, another waiting request runs it; after `rebuild_timeout` (5 seconds
+  by default) the others stop waiting and read for themselves.
 - `AshCache.Supervisor` starts one store per declared cache with no manual
   wiring beyond a single child spec.
 
@@ -34,5 +46,5 @@ Known limits, both deliberate in this version:
 - No per-key eviction. With auto-derived keys a write cannot know every
   query shape that cached its resource, so invalidation is per-resource.
 - Caching a write-heavy resource costs write throughput, because every write
-  bumps a version counter. One write-heavy test suite in the host app
+  writes a new version value to the store. One write-heavy test suite in the host app
   roughly doubled in runtime when its resource was cached.

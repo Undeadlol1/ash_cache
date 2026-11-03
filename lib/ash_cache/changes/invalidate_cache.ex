@@ -24,7 +24,7 @@ defmodule AshCache.Changes.InvalidateCache do
     Ash.Changeset.after_transaction(changeset, fn changeset, result ->
       case result do
         {:ok, record} ->
-          CacheVersion.bump(store, changeset.resource)
+          bump(store, changeset.resource)
           refresh_reads(changeset, record, refreshes)
 
         _error ->
@@ -33,6 +33,14 @@ defmodule AshCache.Changes.InvalidateCache do
 
       result
     end)
+  end
+
+  # The store refused both writing and deleting the counter, so reads may
+  # keep answering from entries cached before this write until their TTL.
+  defp bump(store, resource) do
+    with {:error, reason} <- CacheVersion.bump(store, resource) do
+      Logger.warning("AshCache could not invalidate #{inspect(resource)}: #{inspect(reason)}")
+    end
   end
 
   defp refresh_reads(%{action: %{type: :destroy}}, _record, _refreshes), do: :ok

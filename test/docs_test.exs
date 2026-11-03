@@ -10,6 +10,7 @@ defmodule AshCache.DocsTest do
     AshCache.CacheVersion
     AshCache.CachedRead
     AshCache.Changes.InvalidateCache
+    AshCache.Coalesce
     AshCache.Info
     AshCache.Key
     AshCache.Preparations.ReadThrough
@@ -20,6 +21,7 @@ defmodule AshCache.DocsTest do
     AshCache.Store
     AshCache.Store.Adapter
     AshCache.Store.Adapters.Cachex
+    AshCache.Store.Adapters.Nebulex
     AshCache.Store.Adapters.Noop
     AshCache.Store.Adapters.ProcessLocal
     AshCache.Supervisor

@@ -32,18 +32,20 @@ defmodule AshCache.Changes.InvalidateCacheTest do
 
   test "a committed write bumps the resource's cache version", %{store: store, opts: opts} do
     changeset = changeset_with_bump(opts)
+    before = CacheVersion.current(store, Widget)
 
     write_result = {:ok, %{name: "a"}}
     assert complete_transaction(changeset, write_result) == write_result
-    refute CacheVersion.current(store, Widget) == 0
+    refute CacheVersion.current(store, Widget) == before
   end
 
   test "a failed write does not bump the cache version", %{store: store, opts: opts} do
     changeset = changeset_with_bump(opts)
+    before = CacheVersion.current(store, Widget)
 
     write_result = {:error, :boom}
     assert complete_transaction(changeset, write_result) == write_result
-    assert CacheVersion.current(store, Widget) == 0
+    assert CacheVersion.current(store, Widget) == before
   end
 
   describe "refreshing after a write, through real actions" do
