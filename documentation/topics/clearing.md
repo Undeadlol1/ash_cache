@@ -76,6 +76,14 @@ Things to know:
 - **It is not passed along.** If `Post` lists `Comment` and `Comment` lists
   `Author`, an author change does not clear posts. List `Author` on `Post`
   too.
+- **List the join resource for many-to-many.** If posts and tags are
+  linked through a `PostTag` resource, tagging a post writes a `PostTag`,
+  not a `Tag`. List `PostTag`, and `Tag` too if tag names can change.
+- **Deletes done by the database are not seen.** Rows removed by
+  `ON DELETE CASCADE` never go through Ash, so they clear nothing. Delete
+  them through Ash (for example with `cascade_destroy`), or rely on `ttl`.
+- **Foreign key names don't matter.** Only the resource is listed, so a
+  relationship on any column works the same.
 - **Clearing the listed resource by hand clears the post too.**
   `AshCache.invalidate(MyApp.Blog.Comment)` throws away cached post reads.
 - **Each listed resource makes cached reads a little slower**: one more
