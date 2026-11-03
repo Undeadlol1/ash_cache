@@ -328,6 +328,69 @@ MyApp.Money.ExchangeRate
 |> Ash.run_action!()
 ```
 
+## A slow calculation
+
+A shipping quote that takes a second to work out, shown on every order page.
+The calculation is an Elixir module that only looks at the shipment:
+
+```elixir
+defmodule MyApp.Shipping.Quote do
+  use Ash.Resource.Calculation
+
+  @impl true
+  def calculate(shipments, _opts, _context) do
+    {:ok, Enum.map(shipments, &MyApp.Shipping.Rates.quote(&1.weight_grams, &1.destination))}
+  end
+end
+
+defmodule MyApp.Shipping.Shipment do
+  use Ash.Resource,
+    domain: MyApp.Shipping,
+    extensions: [AshCache.Resource]
+
+  cache do
+    calculation :shipping_quote, ttl: :timer.hours(1)
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :weight_grams, :integer
+    attribute :destination, :string
+  end
+
+  calculations do
+    calculate :shipping_quote, :decimal, MyApp.Shipping.Quote
+  end
+end
+```
+
+Each shipment has its own entry. The first `Ash.load!(shipment, :shipping_quote)`
+runs the calculation. Loads in the next hour find the saved quote. When you
+load the quote for a list of shipments, only the ones not yet saved are
+calculated.
+
+The key holds the arguments, the actor, the tenant, every attribute of the
+shipment and every field the calculation's `load/3` asks for. Edit the
+weight and the next load is a new key, so you never see a quote for the old
+weight. The old entry is not deleted; it expires after an hour. Writes don't
+clear calculation entries.
+
+Use this only for a calculation that depends on the record alone. If it
+reads something else, such as a carrier's API or the current time, the
+cache can't see that change and serves the old answer until the `ttl` runs
+out. Changing any attribute, even one the calculation doesn't use, makes it
+run again. Identical misses at the same moment each run the calculation.
+
+Only module calculations can be cached. An expression calculation already
+runs in the database, and it is saved inside the cached read that loads it.
+Naming one in the `cache` block is a compile error.
+
+To skip the cache for one load:
+
+```elixir
+Ash.load!(shipment, :shipping_quote, context: %{ash_cache: :bypass})
+```
+
 ## Reads that include another resource
 
 The sections below cache reads that `load` records of another resource.

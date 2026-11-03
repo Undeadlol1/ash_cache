@@ -89,6 +89,11 @@ same way with `action :get_rate, ttl: :timer.minutes(10)`. On a cache hit
 the action's `run` function is not called. See "Data from another service"
 in [Examples](documentation/topics/examples.md).
 
+A slow calculation written as an Elixir module is cached the same way, one
+result per record: `calculation :shipping_quote, ttl: :timer.hours(1)`.
+Writes don't clear these results; they run out with their `ttl`. See
+"A slow calculation" in [Examples](documentation/topics/examples.md).
+
 The [Examples](documentation/topics/examples.md) page shows the `cache`
 block for common app features.
 
@@ -157,6 +162,10 @@ fails to compile.
   the cache only on the server that made it. To share one cache, use the
   Nebulex adapter with Redis or a partitioned cache. See
   [Storage](documentation/topics/storage.md#running-on-several-servers).
+- **Cached calculations are not cleared by writes.** A changed record gets
+  a new result at once, but a calculation that reads something outside the
+  record (an API, the clock) can serve an old answer until its `ttl` runs
+  out.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 
