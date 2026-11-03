@@ -1,24 +1,52 @@
 # AshCache
 
-Declarative read-through caching for Ash resources.
+[![Hex.pm](https://img.shields.io/hexpm/v/ash_cache.svg)](https://hex.pm/packages/ash_cache)
+[![HexDocs](https://img.shields.io/badge/hexdocs-ash__cache-blue.svg)](https://hexdocs.pm/ash_cache)
+[![CI](https://github.com/Undeadlol1/ash_cache/actions/workflows/ci.yml/badge.svg)](https://github.com/Undeadlol1/ash_cache/actions/workflows/ci.yml)
+[![License](https://img.shields.io/hexpm/l/ash_cache.svg)](https://github.com/Undeadlol1/ash_cache/blob/main/LICENSE)
 
-Not on Hex yet:
+A cache for [Ash](https://hexdocs.pm/ash) resources. Reads come back from
+memory instead of the database, and the cache clears itself when the data
+changes.
+
+## What you get
+
+- **You pick what is cached.** List the reads to cache in a `cache` block on
+  the resource.
+- **No manual clearing.** When a record is created, updated or deleted, the
+  cache for that resource is cleared.
+- **No data leaks between users.** Each user and each tenant has their own
+  cached results.
+
+## Installation
+
+Add the package to `mix.exs`:
 
 ```elixir
 def deps do
-  [{:ash_cache, github: "Undeadlol1/ash_cache"}]
+  [
+    {:ash_cache, "~> 0.1"},
+    {:cachex, "~> 3.6"}
+  ]
 end
 ```
 
-Then supervise the stores, once, and every cached resource is wired:
+Cachex is the default store. To use another store, see the Storage guide.
+
+Add the supervisor to your application. It starts the cache stores:
 
 ```elixir
+# lib/my_app/application.ex
 children = [
+  # ...
   {AshCache.Supervisor, otp_app: :my_app}
 ]
 ```
 
-## The whole pitch
+## Usage
+
+Add the extension to a resource and list each read to cache. `ttl` is how
+long its results are kept, in milliseconds:
 
 ```elixir
 defmodule MyApp.Shop.Product do
@@ -27,110 +55,126 @@ defmodule MyApp.Shop.Product do
     extensions: [AshCache.Resource]
 
   cache do
+    read :get_by_sku, ttl: :timer.hours(1)
+    read :featured, ttl: :timer.minutes(1)
   end
 end
 ```
 
-That empty block gives you:
+`get_by_sku` and `featured` now come from the cache. Other reads go to the
+database as before. The cache clears when a product is created, updated or
+deleted.
 
-| Concern | Default |
-|---|---|
-| What is cached | every read action |
-| Cache key | action + the full query shape (arguments, filter, sort, limit, offset, page, distinct, select, load) + **actor** + **tenant** |
-| TTL | 1 hour |
-| Store | one app-wide `:ash_cache` Cachex, auto-started by `AshCache.Supervisor` |
-| Invalidation | automatic — every create/update/destroy bumps the resource's generation after commit |
-| Empty results | not cached (no negative-cache poisoning) |
-| Tests | isolated per process (`AshCache.Store.Adapters.ProcessLocal` in test config) |
-
-## What it expects from Ash
-
-Two Ash settings this depends on, rather than merely preferring:
+`ttl` is optional. A read without one keeps its results for 5 minutes. To
+change that for every read of the resource, set `ttl` on the block:
 
 ```elixir
-config :ash,
-  # Generation bumping runs in after_transaction, and the read side's
-  # hooks have to observe writes in the order they happened.
-  read_action_after_action_hooks_in_order?: true,
-  # Actor-scoped cache keys only mean anything if a policy-filtered read
-  # returns rows rather than a static forbidden error.
-  policies: [no_filter_static_forbidden_reads?: false]
+cache do
+  ttl :timer.hours(1)
+
+  read :get_by_sku
+  read :featured, ttl: :timer.minutes(1)
+end
 ```
 
-The store adapter is chosen with `config :ash_cache, adapter: module`.
-Tests usually want `AshCache.Store.Adapters.ProcessLocal`, which gives every
-process its own cache and so makes `async: true` isolated by construction.
+Here `get_by_sku` keeps results for an hour and `featured` for a minute.
 
-Ash needs a SAT solver (`:picosat_elixir` or `:simple_sat`) to evaluate
-policies. That is a dependency of your app, not of this package.
+`ttl: :infinity` keeps results until the resource changes. Use it only
+for data that is rarely written: a write doesn't delete old results from
+memory, it only stops them being used, and they stay in memory until
+their `ttl` runs out.
 
-## How invalidation works
+Generic actions, such as a call to another company's API, are cached the
+same way with `action :get_rate, ttl: :timer.minutes(10)`. On a cache hit
+the action's `run` function is not called. See "Data from another service"
+in [Examples](documentation/topics/examples.md).
 
-Every key embeds a per-resource **generation counter** (`AshCache.Generation`).
-A successful write bumps it in `after_transaction` — never `after_action`, so
-a rolled-back write cannot leave stale cache behind. Old-generation entries
-become unreachable in O(1) and age out via TTL. There is deliberately no
-per-key eviction in v1: with auto-derived keys a write cannot know every
-query shape that cached it.
+The [Examples](documentation/topics/examples.md) page shows the `cache`
+block for common app features.
 
-## Escape hatches, in increasing depth
+## When cached results are thrown away
 
-1. Options in the block:
+A cached result is thrown away in four cases:
 
-   ```elixir
-   cache do
-     ttl :timer.minutes(5)
-     store :products_cache
-     reads [:get_by_sku]        # cache only these reads
-     cache_empty? true
-     adapter_options limit: 1_000  # raw passthrough to the adapter's put/4
+1. **The resource is changed through Ash.** Creating, updating or deleting
+   any product throws away every cached product read, right away.
+2. **A resource listed in `clear_when_changed` is changed through Ash.**
+   See below.
+3. **The `ttl` runs out**, even if nothing changed.
+4. **You call `AshCache.invalidate(MyApp.Shop.Product)`.** Use this when the
+   data changed without Ash, for example after an import.
 
-     # write-through: after every successful create/update, re-run this read
-     # (args taken from the written record) so the fresh value is cached
-     # before anyone asks. Warming re-executes the real read action, so it
-     # shares the normal key derivation and authorization. It runs
-     # synchronously in after_transaction, so each declaration costs the
-     # writer one extra read. Failures only log — the generation bump
-     # already guarantees correctness.
-     warm :get_by_sku, args: [sku: :sku], actor: {MyApp.SystemActor, :system, []}
-   end
-   ```
+Changes to other resources don't count unless you list them. If a cached
+post read includes the post's comments, list the comment resource on the
+post:
 
-2. Per query: `Ash.Query.set_context(query, %{ash_cache: :bypass})`.
-3. Runtime helpers: `AshCache.invalidate(resource)`, `AshCache.clear_store(store)`.
-4. Swap the storage adapter (`AshCache.Store.Adapter` behaviour — Cachex,
-   ProcessLocal, Noop ship in-tree; Redis would be a new adapter):
-   `config :ash_cache, adapter: MyAdapter` or per-process
-   `Process.put(:ash_cache_adapter, MyAdapter)`.
+```elixir
+defmodule MyApp.Blog.Post do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
 
-## Safety properties worth knowing
+  cache do
+    read :get_by_slug, ttl: :timer.hours(1)
+    clear_when_changed [MyApp.Blog.Comment]
+  end
+end
 
-- **Actor and tenant are always part of the key.** A cache hit bypasses the
-  data layer, so filter-based policies are not re-applied on hits; keying by
-  actor means a hit can only serve what that same actor already read through
-  full authorization. What carries the rest of that guarantee is the key's
-  `filter`: the policy authorizer has already folded its filter checks into
-  `query.filter` by the time the cache hook runs, so a read taken with
-  `authorize?: false` on an actor's behalf keys differently from that same
-  actor's authorized read and cannot answer it. Simple (non-filter) checks
-  need no such protection — they forbid the read outright, and a forbidden
-  read caches nothing. Regression-tested both ways.
-- **The full query shape is part of the key.** `Ash.get/2`, ad-hoc filters,
-  limits and sorts all produce distinct entries — no cross-query collisions.
-- **Failed writes touch nothing** (regression-tested).
+defmodule MyApp.Blog.Comment do
+  use Ash.Resource,
+    domain: MyApp.Blog,
+    extensions: [AshCache.Resource]
+end
+```
 
-## Status
+Now creating, updating or deleting any comment throws away every cached
+post read, the same way a change to a post does. The comment resource
+needs the `AshCache.Resource` extension so AshCache sees its changes. It
+does not need a `cache` block. If it does not have the extension, `Post`
+fails to compile.
 
-`0.1.0`, extracted from the application it was written in, where it caches
-two production resources. Three limits are deliberate in this version:
+## Learn more
 
-- **No per-key eviction.** With auto-derived keys a write cannot know every
-  query shape that cached its resource, so invalidation is per-resource.
-- **Loaded relationships go stale.** `load` is part of the key, so a cached
-  entry can carry loaded relationships — but generations are per-resource, and
-  a write to the related resource bumps its own counter, not the parent's. The
-  parent entry keeps serving the old associations until its TTL expires. Keep
-  `load` off cached reads, or treat the TTL as the staleness window you accept.
-- **Writes cost more.** Every write bumps a generation counter. One
-  write-heavy suite in the host app roughly doubled in runtime when its
-  resource was cached — measure before caching a write-heavy resource.
+- [Examples](documentation/topics/examples.md): the `cache` block for common
+  app features, and when not to cache.
+- [Storage](documentation/topics/storage.md): the built-in stores, running
+  on several nodes, and writing your own adapter.
+- [How to test with AshCache](documentation/topics/testing.md): check that a
+  read is cached and that a write clears it, keep parallel tests apart.
+- [How AshCache works](documentation/topics/how-it-works.md): what goes in
+  a cache key, how clearing works, and the limits.
+- [DSL reference](documentation/dsls/DSL-AshCache.Resource.md): every
+  option in the `cache` block.
+
+## Limits
+
+- **The cache clears per resource, not per record.** Any write to a
+  resource clears every cached read and generic action of that resource.
+- **Related records can go stale.** A cached read that loads related
+  records keeps the old related records until the entry expires, unless the
+  related resource is listed in `clear_when_changed`.
+- **The default store is per server.** On several servers, a write clears
+  the cache only on the server that made it. To share one cache, use the
+  Nebulex adapter with Redis or a partitioned cache. See
+  [Storage](documentation/topics/storage.md#running-on-several-servers).
+- **Writes get a little slower.** Each write has to clear the cache.
+  Measure before caching a resource that is written to constantly.
+
+## For AI assistants
+
+<details>
+<summary>Instructions for coding agents (Claude Code, Cursor, Copilot, ...)</summary>
+<p>
+The file for agents is
+<a href="https://github.com/Undeadlol1/ash_cache/blob/main/usage-rules.md"><code>usage-rules.md</code></a>.
+It ships inside the package, so after <code>mix deps.get</code> it is at
+<code>deps/ash_cache/usage-rules.md</code>. Point your agent at that file.
+If your project uses the
+<a href="https://hexdocs.pm/usage_rules"><code>usage_rules</code></a>
+package, add <code>:ash_cache</code> to its list instead.
+</p>
+</details>
+
+## License
+
+MIT. See [LICENSE](https://github.com/Undeadlol1/ash_cache/blob/main/LICENSE).

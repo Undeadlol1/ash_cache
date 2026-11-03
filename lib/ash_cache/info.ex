@@ -2,10 +2,9 @@ defmodule AshCache.Info do
   @moduledoc """
   Read a resource's `cache do ... end` configuration.
 
-  `Spark.InfoGenerator` supplies the per-option readers — `cache_ttl/1`,
-  `cache_store/1`, `cache_reads/1`, `cache_adapter_options/1` (each returning
-  `{:ok, value}` or `:error`, plus raising `!` variants) and the predicate
-  `cache_cache_empty?/1`.
+  `Spark.InfoGenerator` supplies `cache_store/1` (returning `{:ok, value}` or
+  `:error`), `cache_store!/1`, and `cache/1`, which lists the section's
+  `AshCache.CachedRead`, `AshCache.CachedAction` and `AshCache.Refresh` entities.
   """
 
   use Spark.InfoGenerator, extension: AshCache.Resource, sections: [:cache]

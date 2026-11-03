@@ -1,19 +1,19 @@
 defmodule AshCacheTest do
   use ExUnit.Case, async: true
 
-  alias AshCache.Generation
+  alias AshCache.CacheVersion
   alias AshCache.Store
   alias AshCache.Test.CachedWidget
 
-  test "invalidate/1 bumps the resource's generation in its declared store" do
-    assert Generation.current(:ash_cache, CachedWidget) == 0
+  test "invalidating a resource bumps its cache version in its declared store" do
+    before = CacheVersion.current(:ash_cache, CachedWidget)
 
     assert :ok = AshCache.invalidate(CachedWidget)
 
-    assert Generation.current(:ash_cache, CachedWidget) == 1
+    refute CacheVersion.current(:ash_cache, CachedWidget) == before
   end
 
-  test "clear_store/1 empties the store" do
+  test "clearing a store empties it" do
     :ok = Store.put(:ash_cache, :key, "value")
 
     assert :ok = AshCache.clear_store(:ash_cache)

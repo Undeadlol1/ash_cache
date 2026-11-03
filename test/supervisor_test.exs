@@ -4,7 +4,7 @@ defmodule AshCache.SupervisorTest do
   alias AshCache.Test.Domain
 
   test "discovers every distinct store declared by cached resources" do
-    assert Enum.sort(AshCache.Supervisor.stores([Domain])) ==
+    assert Enum.sort(AshCache.Supervisor.store_names([Domain])) ==
              [:ash_cache, :partial_store]
   end
 
@@ -20,7 +20,7 @@ defmodule AshCache.SupervisorTest do
   end
 
   test "no cached resources means no children" do
-    assert AshCache.Supervisor.stores([]) == []
+    assert AshCache.Supervisor.store_names([]) == []
   end
 
   test "a store that is already running elsewhere is adopted, not fatal" do
@@ -32,5 +32,15 @@ defmodule AshCache.SupervisorTest do
     assert AshCache.Supervisor.start_store(:ash_cache) == :ignore
     assert {:ok, true} = Cachex.put(:ash_cache, :probe, 1)
     assert Process.alive?(pid)
+  end
+
+  test "the default store without Cachex fails with a plain message" do
+    assert_raise ArgumentError, ~r/default store needs Cachex.*adapter: YourAdapter/, fn ->
+      AshCache.Supervisor.ensure_store_available!(AshCache.Store.Adapters.Cachex, false)
+    end
+  end
+
+  test "another adapter does not need Cachex" do
+    assert :ok = AshCache.Supervisor.ensure_store_available!(SomeAdapter, false)
   end
 end

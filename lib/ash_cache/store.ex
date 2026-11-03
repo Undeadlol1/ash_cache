@@ -26,8 +26,8 @@ defmodule AshCache.Store do
   @spec put(atom(), term(), term(), keyword()) :: :ok | {:error, term()}
   def put(store, key, value, opts \\ []), do: adapter().put(store, key, value, opts)
 
-  @spec del(atom(), term()) :: :ok | {:error, term()}
-  def del(store, key), do: adapter().del(store, key)
+  @spec delete(atom(), term()) :: :ok | {:error, term()}
+  def delete(store, key), do: adapter().delete(store, key)
 
   @spec clear(atom()) :: :ok | {:error, term()}
   def clear(store), do: adapter().clear(store)

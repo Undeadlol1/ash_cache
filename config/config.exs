@@ -1,14 +1,14 @@
 import Config
 
-# Not shipped in the package (see the `files` list in mix.exs): this is how
-# the suite reproduces the Ash settings AshCache is meant to run under.
+# Test-suite settings only; AshCache needs none of them from a host app
+# (verified by flipping each and running the suite).
 config :ash,
-  # Generation bumping runs in after_transaction; the read side's hooks have
-  # to observe writes in the order they happened. A host that sets this
-  # differently gets different results.
+  # Ash's recommended value; the suite passes with either.
   read_action_after_action_hooks_in_order?: true,
-  # Policy-filtered reads must return rows, not a static forbidden error,
-  # for the actor-scoped cache key tests to exercise anything.
+  # With Ash's default (true), an actorless read of a policy-guarded resource
+  # is a Forbidden error, so the "cached rows never leak" tests would never
+  # reach the cache. `false` makes them return filtered rows instead, which
+  # is the path those tests exist to check.
   policies: [no_filter_static_forbidden_reads?: false],
   # Ash requires an explicit answer; this one only reaches the suite's
   # fixture attributes, never anything AshCache itself does.

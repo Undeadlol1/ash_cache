@@ -20,18 +20,20 @@ defmodule AshCache.Supervisor do
 
   @impl true
   def init(opts) do
+    ensure_store_available!(AshCache.Store.adapter())
+
     children =
       opts
       |> configured_domains()
-      |> stores()
+      |> store_names()
       |> Enum.map(&store_child/1)
 
     Supervisor.init(children, strategy: :one_for_one)
   end
 
   @doc "The distinct store names declared by the given domains' cached resources."
-  @spec stores([module()]) :: [atom()]
-  def stores(domains) do
+  @spec store_names([module()]) :: [atom()]
+  def store_names(domains) do
     domains
     |> Enum.flat_map(&Ash.Domain.Info.resources/1)
     |> Enum.filter(&AshCache.Info.cached?/1)
@@ -56,11 +58,28 @@ defmodule AshCache.Supervisor do
   end
 
   @doc false
-  def start_store(store) do
-    case Cachex.start_link(store, []) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, _pid}} -> :ignore
-      other -> other
+  def ensure_store_available!(adapter, cachex_loaded? \\ Code.ensure_loaded?(Cachex)) do
+    if adapter == AshCache.Store.Adapters.Cachex and not cachex_loaded? do
+      raise ArgumentError,
+            "AshCache's default store needs Cachex. " <>
+              ~s|Add {:cachex, "~> 3.6"} to your deps, | <>
+              "or set config :ash_cache, adapter: YourAdapter."
     end
+
+    :ok
+  end
+
+  if Code.ensure_loaded?(Cachex) do
+    @doc false
+    def start_store(store) do
+      case Cachex.start_link(store, []) do
+        {:ok, pid} -> {:ok, pid}
+        {:error, {:already_started, _pid}} -> :ignore
+        error -> error
+      end
+    end
+  else
+    @doc false
+    def start_store(_store), do: :ignore
   end
 end

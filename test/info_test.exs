@@ -5,21 +5,26 @@ defmodule AshCache.InfoTest do
   alias AshCache.Test.PartiallyCachedWidget
   alias AshCache.Test.Widget
 
-  test "an empty cache block reports every default" do
-    assert AshCache.Info.cache_ttl!(CachedWidget) == to_timeout(hour: 1)
+  test "a cache block reports its store and one entry per cached read" do
     assert AshCache.Info.cache_store!(CachedWidget) == :ash_cache
-    assert AshCache.Info.cache_reads!(CachedWidget) == :all
-    assert AshCache.Info.cache_cache_empty?(CachedWidget) == false
+
+    reads = Enum.filter(AshCache.Info.cache(CachedWidget), &match?(%AshCache.CachedRead{}, &1))
+
+    assert Enum.map(reads, & &1.name) == [:read, :get_by_name, :paged]
+    assert Enum.all?(reads, &(&1.ttl == to_timeout(hour: 1)))
+    assert Enum.all?(reads, &(&1.cache_empty? == false and &1.store_options == []))
   end
 
   test "overrides are reported as declared" do
-    assert AshCache.Info.cache_ttl!(PartiallyCachedWidget) == to_timeout(minute: 5)
     assert AshCache.Info.cache_store!(PartiallyCachedWidget) == :partial_store
-    assert AshCache.Info.cache_reads!(PartiallyCachedWidget) == [:get_by_name]
-    assert AshCache.Info.cache_cache_empty?(PartiallyCachedWidget) == true
+
+    assert [%AshCache.CachedRead{name: :get_by_name, ttl: ttl, cache_empty?: true}] =
+             AshCache.Info.cache(PartiallyCachedWidget)
+
+    assert ttl == to_timeout(minute: 5)
   end
 
-  test "cached?/1 tells extension users apart from plain resources" do
+  test "tells resources using the extension apart from plain resources" do
     assert AshCache.Info.cached?(CachedWidget)
     assert AshCache.Info.cached?(PartiallyCachedWidget)
     refute AshCache.Info.cached?(Widget)

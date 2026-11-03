@@ -1,8 +1,6 @@
 defmodule AshCache.Resource do
   @moduledoc """
-  Declarative read-through caching for an Ash resource.
-
-  The zero-config case is the whole point — opt in and every default applies:
+  Caches the read and generic actions you declare, each with its own lifetime.
 
       defmodule MyApp.Shop.Product do
         use Ash.Resource,
@@ -10,80 +8,85 @@ defmodule AshCache.Resource do
           extensions: [AshCache.Resource]
 
         cache do
+          read :get_by_sku, ttl: :timer.hours(1)
+          action :exchange_rate, ttl: :timer.minutes(10)
         end
       end
 
-  That alone means:
+  Each `read` is cached, keyed by the action, the whole query, the actor and
+  the tenant (see `AshCache.Key`). A `read` lives as long as its own `ttl`,
+  else the block's `ttl` (5 minutes by default); empty results are not
+  cached unless you ask. Entries go in the shared `:ash_cache` store unless you
+  set `store`. Every create, update or destroy clears the resource's cached
+  reads after the transaction commits (see `AshCache.Changes.InvalidateCache`).
+  So does a write to any resource listed in `clear_when_changed`.
 
-    * every read action is cached (key: action + the full query shape +
-      actor + tenant — see `AshCache.Key`)
-    * results live for one hour in the app-wide `:ash_cache` store
-    * every create/update/destroy automatically invalidates the resource's
-      cached reads after commit (see `AshCache.Changes.BumpGeneration`)
-    * empty results are not cached
-    * async tests are isolated via the process-local adapter (test config)
+  Each `action` caches a generic action, keyed by the action, its arguments,
+  the actor and the tenant, with the same `ttl` rules. On a hit its `run` is
+  not called (see `AshCache.Actions.RunThrough`). Writes clear these entries
+  too.
 
-  Escape hatches, in increasing depth:
-
-      cache do
-        ttl :timer.minutes(5)          # how long entries live
-        store :products_cache          # a dedicated store for this resource
-        reads [:get_by_sku]            # cache only these read actions
-        cache_empty? true              # cache empty results too
-        adapter_options [limit: 1_000] # passed verbatim to the store adapter
-      end
-
-  Beyond the DSL: bypass one query with
-  `Ash.Query.set_context(query, %{ash_cache: :bypass})`, or swap the storage
-  adapter (`config :ash_cache, adapter: ...` or
-  `Process.put(:ash_cache_adapter, ...)`).
+  Actions without a `read` or `action` entry are never cached.
   """
 
-  @warm %Spark.Dsl.Entity{
-    name: :warm,
+  @read %Spark.Dsl.Entity{
+    name: :read,
+    describe: "Cache this read action, with its own lifetime and settings.",
+    target: AshCache.CachedRead,
+    args: [:name],
+    schema: AshCache.CachedRead.schema()
+  }
+  @action %Spark.Dsl.Entity{
+    name: :action,
+    describe: "Cache this generic action, with its own lifetime and settings.",
+    target: AshCache.CachedAction,
+    args: [:name],
+    schema: AshCache.CachedAction.schema()
+  }
+  @refresh %Spark.Dsl.Entity{
+    name: :refresh,
     describe: """
     Re-run a read after every successful create/update so the fresh value is
-    cached immediately (write-through), e.g. `warm :get_by_key, args: [key: :key]`.
+    cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: :key]`.
     """,
-    target: AshCache.Warm,
+    target: AshCache.Refresh,
     args: [:read],
-    schema: AshCache.Warm.schema()
+    schema: AshCache.Refresh.schema()
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Read-through caching configuration. An empty block uses every default.",
-    entities: [@warm],
+    describe: "Which reads and generic actions to cache, where, and for how long.",
+    entities: [@read, @action, @refresh],
     schema: [
-      ttl: [
-        type: :pos_integer,
-        default: to_timeout(hour: 1),
-        doc: "Milliseconds a cached entry lives before it expires."
-      ],
       store: [
         type: :atom,
         default: :ash_cache,
-        doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
-      ],
-      reads: [
-        type: {:or, [{:list, :atom}, {:in, [:all]}]},
-        default: :all,
-        doc: "Read action names to cache, or :all (the default)."
-      ],
-      cache_empty?: [
-        type: :boolean,
-        default: false,
-        doc: "Whether empty results ([] or nil) are cached. Off by default."
-      ],
-      adapter_options: [
-        type: :keyword_list,
-        default: [],
         doc:
-          "Options passed verbatim to the store adapter's put/4. Couples the resource to that adapter."
+          "Name of the cache store. Distinct stores isolate eviction and clearing. With `AshCache.Store.Adapters.Nebulex`, the Nebulex cache module."
+      ],
+      ttl: [
+        type: {:or, [:pos_integer, {:in, [:infinity]}]},
+        default: :timer.minutes(5),
+        doc: """
+        Milliseconds a cached entry lives before it expires, for every `read`
+        and `action` that does not set its own `ttl`. `:infinity` never expires; it is never
+        the default.
+        """
+      ],
+      clear_when_changed: [
+        type: {:list, :atom},
+        default: [],
+        doc: """
+        Other resources whose create, update or destroy also clears this
+        resource's cached reads and generic actions, e.g. `clear_when_changed [MyApp.Blog.Comment]`.
+        Each one must use the `AshCache.Resource` extension, even if it caches
+        nothing itself.
+        """
       ]
     ]
   }
   use Spark.Dsl.Extension,
     sections: [@cache],
     transformers: [AshCache.Resource.Transformers.AttachCacheHooks],
-    verifiers: [AshCache.Resource.Verifiers.ValidateConfig]
+    verifiers: [AshCache.Resource.Verifiers.ValidateCacheBlock]
 end

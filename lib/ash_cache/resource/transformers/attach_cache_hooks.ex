@@ -4,7 +4,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
     * each cached read action gets the `AshCache.Preparations.ReadThrough`
       preparation, appended after any preparations the action declares
-    * every create/update/destroy gets the `AshCache.Changes.BumpGeneration`
+    * each cached generic action has its `run` replaced by
+      `AshCache.Actions.RunThrough`, which calls the original on a miss
+    * every create/update/destroy gets the `AshCache.Changes.InvalidateCache`
       change, so invalidation is a property of the resource — an action added
       later cannot forget it
   """
@@ -21,27 +23,52 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   @doc false
   def transform(dsl_state) do
-    store = Transformer.get_option(dsl_state, [:cache], :store)
-    warm_specs = Transformer.get_entities(dsl_state, [:cache])
+    # Read through Info so the defaults apply when there is no `cache` block.
+    store = AshCache.Info.cache_store!(dsl_state)
+    block_ttl = AshCache.Info.cache_ttl!(dsl_state)
+    clear_when_changed = AshCache.Info.cache_clear_when_changed!(dsl_state)
+    entities = Transformer.get_entities(dsl_state, [:cache])
+    refreshes = Enum.filter(entities, &match?(%AshCache.Refresh{}, &1))
 
-    read_opts = [
-      store: store,
-      ttl: Transformer.get_option(dsl_state, [:cache], :ttl),
-      cache_empty?: Transformer.get_option(dsl_state, [:cache], :cache_empty?),
-      adapter_options: Transformer.get_option(dsl_state, [:cache], :adapter_options)
-    ]
+    cached_reads =
+      for %AshCache.CachedRead{} = read <- entities, into: %{}, do: {read.name, read}
 
-    cached_reads = Transformer.get_option(dsl_state, [:cache], :reads)
+    cached_actions =
+      for %AshCache.CachedAction{} = cached <- entities, into: %{}, do: {cached.name, cached}
 
     dsl_state
     |> Transformer.get_entities([:actions])
     |> Enum.reduce(dsl_state, fn action, dsl_state ->
       cond do
-        action.type == :read and cached_read?(action, cached_reads) ->
-          attach_preparation(dsl_state, action, read_opts)
+        action.type == :read and is_map_key(cached_reads, action.name) ->
+          read = cached_reads[action.name]
+
+          preparation_opts = [
+            store: store,
+            ttl: AshCache.CachedRead.ttl(read, block_ttl),
+            cache_empty?: read.cache_empty?,
+            store_options: read.store_options,
+            clear_when_changed: clear_when_changed
+          ]
+
+          attach_preparation(dsl_state, action, preparation_opts)
+
+        action.type == :action and is_map_key(cached_actions, action.name) ->
+          cached = cached_actions[action.name]
+
+          run_opts = [
+            run: action.run,
+            store: store,
+            ttl: AshCache.CachedRead.ttl(cached, block_ttl),
+            cache_empty?: cached.cache_empty?,
+            store_options: cached.store_options,
+            clear_when_changed: clear_when_changed
+          ]
+
+          replace_action(dsl_state, %{action | run: {AshCache.Actions.RunThrough, run_opts}})
 
         action.type in @write_types ->
-          attach_change(dsl_state, action, store, warm_specs)
+          attach_change(dsl_state, action, store, refreshes)
 
         true ->
           dsl_state
@@ -50,13 +77,10 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     |> then(&{:ok, &1})
   end
 
-  defp cached_read?(_action, :all), do: true
-  defp cached_read?(action, read_names), do: action.name in read_names
-
-  defp attach_preparation(dsl_state, action, read_opts) do
+  defp attach_preparation(dsl_state, action, preparation_opts) do
     preparation =
       Transformer.build_entity!(Dsl, [:actions, :read], :prepare,
-        preparation: {AshCache.Preparations.ReadThrough, read_opts}
+        preparation: {AshCache.Preparations.ReadThrough, preparation_opts}
       )
 
     dsl_state
@@ -73,16 +97,16 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   defp suppress_primary_read_warning(dsl_state, _action), do: dsl_state
 
-  defp attach_change(dsl_state, action, store, warm_specs) do
+  defp attach_change(dsl_state, action, store, refreshes) do
     change_opts =
-      case warm_specs do
+      case refreshes do
         [] -> [store: store]
-        warm_specs -> [store: store, warm: warm_specs]
+        refreshes -> [store: store, refresh: refreshes]
       end
 
     change =
       Transformer.build_entity!(Dsl, [:actions, action.type], :change,
-        change: {AshCache.Changes.BumpGeneration, change_opts}
+        change: {AshCache.Changes.InvalidateCache, change_opts}
       )
 
     replace_action(dsl_state, %{action | changes: action.changes ++ [change]})

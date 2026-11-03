@@ -1,12 +1,12 @@
 defmodule AshCache.Key do
   @moduledoc """
-  Derives deterministic cache keys for cached read actions.
+  Builds deterministic cache keys for cached read and generic actions.
 
   A key is a plain Erlang term (no hashing, so no collision risk) built from:
 
     * the resource module
-    * the resource's current cache generation (see `AshCache.Generation`)
-    * the read action name
+    * the resource's current cache version (see `AshCache.CacheVersion`)
+    * the action name
     * the whole query shape — arguments, `filter`, `sort`, `limit`, `offset`,
       `page`, `distinct`, `select` and `load` (assembled in
       `AshCache.Preparations.ReadThrough`). `filter` is the load-bearing one:
@@ -14,17 +14,19 @@ defmodule AshCache.Key do
       the time the key is derived, so it is what stops an unauthorized read
       from being answered by an authorized one — not merely what tells two
       queries apart
+    * for a generic action, only its arguments take the place of the query
+      shape (`AshCache.Actions.RunThrough`)
     * the actor and tenant, so cached results never leak across actors
       or tenants
   """
 
   @type t ::
-          {:ash_cache, resource :: module(), generation :: non_neg_integer(), action :: atom(),
+          {:ash_cache, resource :: module(), version :: term(), action :: atom(),
            query_shape :: term(), actor_ref :: term(), tenant_ref :: term()}
 
-  @spec derive(module(), atom(), map(), non_neg_integer(), keyword()) :: t()
-  def derive(resource, action_name, query_shape, generation, opts) do
-    {:ash_cache, resource, generation, action_name, normalize(query_shape),
+  @spec build(module(), atom(), map(), term(), keyword()) :: t()
+  def build(resource, action_name, query_shape, version, opts) do
+    {:ash_cache, resource, version, action_name, normalize(query_shape),
      actor_ref(Keyword.get(opts, :actor)), tenant_ref(Keyword.get(opts, :tenant))}
   end
 
