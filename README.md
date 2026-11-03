@@ -26,7 +26,7 @@ end
 The first `get_by_sku` read goes to the database and its results are
 saved. The next reads come from the cache, not the database. That's it.
 
-## What you get
+## Features
 
 - **You pick what is cached.** List the reads to cache in a `cache` block on
   the resource.
