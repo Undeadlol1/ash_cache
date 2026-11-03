@@ -120,7 +120,8 @@ related resource changes, or by hand after an import, see
   related resource is listed in `clear_when_changed`.
 - **The default store is per server.** On several servers, a write clears
   the cache only on the server that made it. To share one cache, use the
-  Nebulex adapter with Redis or a partitioned cache. See
+  Nebulex adapter with Redis or a partitioned cache. This has not been
+  tested on real servers yet. See
   [Storage](documentation/topics/storage.md#running-on-several-servers).
 - **`ttl: :infinity` holds memory.** A write doesn't delete old results,
   it only stops them being used. They stay in memory until their `ttl`

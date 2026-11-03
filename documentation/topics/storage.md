@@ -27,6 +27,16 @@ Process.put(:ash_cache_adapter, AshCache.Store.Adapters.Noop)
 
 ## Running on several servers
 
+> #### Not tested on real servers yet {: .warning}
+>
+> Running AshCache on several servers has not been tried on real
+> hardware. It is covered by unit tests and by end-to-end tests that start
+> three nodes on one computer and share a partitioned Nebulex cache
+> between them. It has not been run on separate machines, against a real
+> Redis server, or with the replicated, coherent or multilevel adapters.
+> Test it in your own setup before relying on it, and please
+> [report what you find](https://github.com/Undeadlol1/ash_cache/issues).
+
 The Cachex adapter keeps each server's cache in that server's memory. On
 several servers, a write clears the cache only on the server that made it,
 and the others serve old results until their `ttl` runs out.
