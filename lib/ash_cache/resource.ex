@@ -48,7 +48,8 @@ defmodule AshCache.Resource do
       store: [
         type: :atom,
         default: :ash_cache,
-        doc: "Name of the cache store. Distinct stores isolate eviction and clearing."
+        doc:
+          "Name of the cache store. Distinct stores isolate eviction and clearing. With `AshCache.Store.Adapters.Nebulex`, the Nebulex cache module."
       ],
       ttl: [
         type: {:or, [:pos_integer, {:in, [:infinity]}]},

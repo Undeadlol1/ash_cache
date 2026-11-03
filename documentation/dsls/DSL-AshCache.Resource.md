@@ -41,7 +41,7 @@ Which reads to cache, where, and for how long.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. |
+| [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. With `AshCache.Store.Adapters.Nebulex`, the Nebulex cache module. |
 | [`ttl`](#cache-ttl){: #cache-ttl } | `pos_integer \| :infinity` | `300000` | Milliseconds a cached entry lives before it expires, for every `read` that does not set its own `ttl`. `:infinity` never expires; it is never the default. |
 | [`clear_when_changed`](#cache-clear_when_changed){: #cache-clear_when_changed } | `list(atom)` | `[]` | Other resources whose create, update or destroy also clears this resource's cached reads, e.g. `clear_when_changed [MyApp.Blog.Comment]`. Each one must use the `AshCache.Resource` extension, even if it caches nothing itself. |
 

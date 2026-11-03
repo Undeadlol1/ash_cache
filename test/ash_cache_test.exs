@@ -6,11 +6,11 @@ defmodule AshCacheTest do
   alias AshCache.Test.CachedWidget
 
   test "invalidating a resource bumps its cache version in its declared store" do
-    assert CacheVersion.current(:ash_cache, CachedWidget) == 0
+    before = CacheVersion.current(:ash_cache, CachedWidget)
 
     assert :ok = AshCache.invalidate(CachedWidget)
 
-    refute CacheVersion.current(:ash_cache, CachedWidget) == 0
+    refute CacheVersion.current(:ash_cache, CachedWidget) == before
   end
 
   test "clearing a store empties it" do

@@ -2,7 +2,7 @@ defmodule AshCache.TestingTest do
   use ExUnit.Case, async: true
 
   alias AshCache.Test.CachedWidget
-  alias AshCache.Test.FailingPutAdapter
+  alias AshCache.Test.FailingWriteAdapter
 
   defp read_widget!(name) do
     CachedWidget
@@ -49,7 +49,7 @@ defmodule AshCache.TestingTest do
     end
 
     test "a failed invalidation emits nothing" do
-      Process.put(:ash_cache_adapter, FailingPutAdapter)
+      Process.put(:ash_cache_adapter, FailingWriteAdapter)
 
       assert {:error, :boom} = AshCache.invalidate(CachedWidget)
       refute_received {:ash_cache, :invalidate, _}

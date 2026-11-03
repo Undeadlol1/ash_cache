@@ -25,10 +25,13 @@ Add the package to `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ash_cache, "~> 0.1"}
+    {:ash_cache, "~> 0.1"},
+    {:cachex, "~> 3.6"}
   ]
 end
 ```
+
+Cachex is the default store. To use another store, see the Storage guide.
 
 Add the supervisor to your application. It starts the cache stores:
 
@@ -145,11 +148,10 @@ fails to compile.
 - **Related records can go stale.** A cached read that loads related
   records keeps the old related records until the entry expires, unless the
   related resource is listed in `clear_when_changed`.
-- **Each node has its own cache.** On several nodes, a write clears the
-  cache only on the node that made it. See [Storage](documentation/topics/storage.md).
-- **No protection when a popular entry runs out.** Every request that
-  arrives before the read is cached again goes to the database. Choose a
-  `ttl` your database can handle that burst for.
+- **The default store is per server.** On several servers, a write clears
+  the cache only on the server that made it. To share one cache, use the
+  Nebulex adapter with Redis or a partitioned cache. See
+  [Storage](documentation/topics/storage.md#running-on-several-servers).
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

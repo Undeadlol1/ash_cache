@@ -10,6 +10,7 @@ defmodule AshCache.DocsTest do
     AshCache.CacheVersion
     AshCache.CachedRead
     AshCache.Changes.InvalidateCache
+    AshCache.Coalesce
     AshCache.Info
     AshCache.Key
     AshCache.Preparations.ReadThrough
@@ -20,6 +21,7 @@ defmodule AshCache.DocsTest do
     AshCache.Store
     AshCache.Store.Adapter
     AshCache.Store.Adapters.Cachex
+    AshCache.Store.Adapters.Nebulex
     AshCache.Store.Adapters.Noop
     AshCache.Store.Adapters.ProcessLocal
     AshCache.Supervisor
@@ -43,7 +45,7 @@ defmodule AshCache.DocsTest do
   end
 
   defp documented_module(source) do
-    with [_, module] <- Regex.run(~r/^defmodule\s+([\w.]+)\s+do$/m, source),
+    with [_, module] <- Regex.run(~r/^\s*defmodule\s+([\w.]+)\s+do$/m, source),
          false <- source =~ ~r/^\s*@moduledoc false$/m do
       [module]
     else
