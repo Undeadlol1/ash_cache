@@ -258,6 +258,68 @@ defmodule AshCache.Test.AuthorTag do
   end
 end
 
+defmodule AshCache.Test.Loan do
+  @moduledoc """
+  A row owned by an author through `belongs_to`, read under the usual
+  per-owner policy.
+  """
+
+  use Ash.Resource,
+    domain: AshCache.Test.LibraryDomain,
+    data_layer: Ash.DataLayer.Ets,
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshCache.Resource]
+
+  ets do
+    private?(true)
+  end
+
+  cache do
+    read(:read)
+    read(:of_authors_named_ann)
+    read(:of_long_books)
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:author_id, :uuid, allow_nil?: false, public?: true)
+    attribute(:book_id, :uuid, allow_nil?: false, public?: true)
+  end
+
+  relationships do
+    belongs_to(:author, AshCache.Test.Author, define_attribute?: false, public?: true)
+
+    belongs_to(:long_book, AshCache.Test.Book,
+      source_attribute: :book_id,
+      define_attribute?: false,
+      filter: expr(pages > 50),
+      public?: true
+    )
+  end
+
+  actions do
+    defaults([:read, create: :*])
+
+    read :of_authors_named_ann do
+      filter(expr(author.name == "Ann"))
+    end
+
+    read :of_long_books do
+      filter(expr(not is_nil(long_book.id)))
+    end
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if(relates_to_actor_via(:author))
+    end
+
+    policy action_type(:create) do
+      authorize_if(always())
+    end
+  end
+end
+
 defmodule AshCache.Test.LibraryDomain do
   @moduledoc false
 
@@ -274,5 +336,6 @@ defmodule AshCache.Test.LibraryDomain do
     resource(AshCache.Test.Review)
     resource(AshCache.Test.Tag)
     resource(AshCache.Test.AuthorTag)
+    resource(AshCache.Test.Loan)
   end
 end

@@ -12,4 +12,14 @@ defmodule AshCache.Test.Events do
       0 -> Enum.reverse(events)
     end
   end
+
+  @doc "Like `drain/0`, keeping only the events of reads of `resource`."
+  def drain_for(resource, events \\ []) do
+    receive do
+      {:ash_cache, kind, %{resource: ^resource}} -> drain_for(resource, [kind | events])
+      {:ash_cache, _kind, _metadata} -> drain_for(resource, events)
+    after
+      0 -> Enum.reverse(events)
+    end
+  end
 end

@@ -56,8 +56,9 @@ where it caches two production resources.
   resource) is cached only when every resource it reaches is the resource
   itself or in `clear_when_changed`; otherwise it goes to the data layer
   every time. Related records loaded with `load` are read fresh on every
-  read and need nothing. A cache hit no longer hangs when the read loads an
-  aggregate.
+  read and need nothing. A per-owner policy (`relates_to_actor_via` over a
+  `belongs_to`) compares only the row's own foreign key and needs nothing
+  either. A cache hit no longer hangs when the read loads an aggregate.
 - `AshCache.Supervisor` starts one store per declared cache with no manual
   wiring beyond a single child spec.
 

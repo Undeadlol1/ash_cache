@@ -15,7 +15,8 @@ defmodule AshCache.Dependencies do
 
   Each relationship on such a path counts, and so does the join resource of a
   `many_to_many`: a new join row changes the result as much as a new related
-  row does.
+  row does. Comparing only a `belongs_to`'s key, as `relates_to_actor_via`
+  does, reads the foreign key on the row itself and does not count.
 
   Related records loaded with `load: :comments` do not count. Ash reads them
   after the cached rows on every read, cache hit or not, so they are never
@@ -49,11 +50,41 @@ defmodule AshCache.Dependencies do
       {:ok,
        expressions
        |> Enum.map(&as_expression(query.resource, &1))
+       |> Enum.map(&Ash.Filter.map(&1, fn expr -> as_own_key(query.resource, expr) end))
        |> Enum.flat_map(&relationship_paths/1)
        |> Enum.flat_map(&along_path(query.resource, &1))
        |> Enum.uniq()}
     end
   end
+
+  # `author.id` over `belongs_to :author` is the `author_id` the row already
+  # holds, so the per-owner policy `relates_to_actor_via(:author)` does not
+  # make every author write clear the entry. A relationship with a filter of
+  # its own also depends on the related row, so it keeps its path.
+  defp as_own_key(resource, %Ref{relationship_path: [_ | _] = path, attribute: attribute} = ref) do
+    {through, [last]} = Enum.split(path, -1)
+
+    case Ash.Resource.Info.relationship(related(resource, through), last) do
+      %{type: :belongs_to, filter: nil, destination_attribute: key, source_attribute: own_key} ->
+        if field_name(attribute) == key do
+          as_own_key(resource, %{ref | relationship_path: through, attribute: own_key})
+        else
+          ref
+        end
+
+      _other ->
+        ref
+    end
+  end
+
+  defp as_own_key(_resource, expression), do: expression
+
+  defp related(resource, path) do
+    Enum.reduce(path, resource, &Ash.Resource.Info.relationship(&2, &1).destination)
+  end
+
+  defp field_name(%{name: name}), do: name
+  defp field_name(name), do: name
 
   # Ash's own walk leaves out the relationship an aggregate counts over when
   # the aggregate has no field and no filter, so those are added from the

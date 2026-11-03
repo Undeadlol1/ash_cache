@@ -11,6 +11,7 @@ defmodule AshCache.RelatedDataTest do
   alias AshCache.Test.Events
   alias AshCache.Test.FullyTrackingAuthor
   alias AshCache.Test.GuardedAuthor
+  alias AshCache.Test.Loan
   alias AshCache.Test.Review
   alias AshCache.Test.Tag
   alias AshCache.Test.TagTrackingAuthor
@@ -279,6 +280,38 @@ defmodule AshCache.RelatedDataTest do
 
       assert [] = Ash.read!(BookGuardedAuthor)
       assert Events.drain() == [:miss]
+    end
+  end
+
+  describe "a read through a belongs_to" do
+    setup do
+      {author, book} = author_with_book!(Author, 10)
+      loan = create!(Loan, %{author_id: author.id, book_id: book.id})
+      %{author: author, book: book, loan: loan}
+    end
+
+    defp read_loans_twice(action, actor) do
+      Events.drain()
+      Ash.read!(Loan, action: action, actor: actor)
+      loans = Ash.read!(Loan, action: action, actor: actor)
+      {loans, Events.drain_for(Loan)}
+    end
+
+    test "that only compares its key, as a per-owner policy does, is cached", %{author: author} do
+      assert {[_loan], [:miss, :hit]} = read_loans_twice(:read, author)
+    end
+
+    test "that reads another field of the related row is not cached", %{author: author} do
+      assert {[_loan], [:miss, :miss]} = read_loans_twice(:of_authors_named_ann, author)
+    end
+
+    test "whose relationship has a filter of its own is not cached",
+         %{author: author, book: book} do
+      assert {[], [:miss, :miss]} = read_loans_twice(:of_long_books, author)
+
+      set_pages!(book, 99)
+
+      assert {[_loan], _events} = read_loans_twice(:of_long_books, author)
     end
   end
 
