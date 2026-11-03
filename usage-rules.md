@@ -86,7 +86,8 @@ when a requirement demands them.
   at checkout, balances, permissions checked for a payment.
 - The default store is in memory per node. On several nodes a write clears
   the cache only on the node that made it; others serve old entries until
-  `ttl`. To share one cache, set
+  `ttl`. Sharing one cache is experimental (not tested on real servers);
+  only set it up if the user asks. To share one cache, set
   `config :ash_cache, adapter: AshCache.Store.Adapters.Nebulex`, start your
   own Nebulex cache (Redis, partitioned or replicated) instead of
   `AshCache.Supervisor`, and set `store MyApp.Cache` on every cached

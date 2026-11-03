@@ -92,8 +92,7 @@ however many there were. The old entries are not deleted; they expire on their o
 
 If the store loses the value (it was evicted, or the store restarted),
 AshCache picks a new one too. Values are random and never reused, so a lost
-value can only cause misses, never bring back old entries. See
-[Storage](storage.md#a-lost-entry-never-brings-back-old-data).
+value can only cause misses, never bring back old entries.
 
 The value is replaced after the database transaction commits, not before.
 A write that is rolled back never reaches that point, so it cannot leave

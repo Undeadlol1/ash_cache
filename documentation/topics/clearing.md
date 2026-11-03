@@ -107,9 +107,9 @@ touching the rest, give it its own store; see
 
 With the default store, each server keeps its own cache. A write, or a call
 to `AshCache.invalidate/1`, clears the cache only on the server where it
-ran. The other servers serve old results until `ttl` runs out. To share one
-cache between servers, see
-[Running on several servers](storage.md#running-on-several-servers).
+ran. The other servers serve old results until `ttl` runs out. Sharing one
+cache between servers is experimental; see
+[Running on several servers](storage.md#running-on-several-servers-experimental).
 
 ## Fill the cache right after a write
 

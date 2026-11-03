@@ -119,10 +119,9 @@ related resource changes, or by hand after an import, see
   records keeps the old related records until the entry expires, unless the
   related resource is listed in `clear_when_changed`.
 - **The default store is per server.** On several servers, a write clears
-  the cache only on the server that made it. To share one cache, use the
-  Nebulex adapter with Redis or a partitioned cache. This has not been
-  tested on real servers yet. See
-  [Storage](documentation/topics/storage.md#running-on-several-servers).
+  the cache only on the server that made it. Sharing one cache between
+  servers is experimental and not tested on real servers; see
+  [Storage](documentation/topics/storage.md#running-on-several-servers-experimental).
 - **`ttl: :infinity` holds memory.** A write doesn't delete old results,
   it only stops them being used. They stay in memory until their `ttl`
   runs out, so use `:infinity` only for data that is rarely written.

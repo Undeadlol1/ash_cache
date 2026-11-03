@@ -14,8 +14,8 @@ Two things apply to every example:
 - The default store keeps each server's cache in its own memory. If your
   app runs on several servers, a write clears the cache only on the server
   that made it, and the others serve the old result until `ttl` runs out.
-  To share one cache between servers, use the Nebulex adapter; see
-  [Running on several servers](storage.md#running-on-several-servers).
+  Sharing one cache between servers is experimental; see
+  [Running on several servers](storage.md#running-on-several-servers-experimental).
 
 ## Blog posts and help pages
 
