@@ -15,12 +15,11 @@ defmodule AshCache.Store.Adapters.ProcessLocal do
   # the process, slowing every process-dictionary walk. Overflowing the
   # bound resets the store — a burst of misses, never stale data.
   #
-  # "Never stale data" only holds because `never_evict: true` entries are exempt from
-  # the bound. The one such entry is the resource's version counter: reset
-  # it and `AshCache.CacheVersion.current/2` self-heals to zero, which is not a
-  # miss but a rollback — every key written under an earlier cache version becomes
-  # reachable again. Dead result sets are what the bound is for, and none of
-  # those are marked never-evict.
+  # `never_evict: true` entries are exempt from the bound. The one such entry is the
+  # resource's cache version counter: losing it is safe (the next read picks a
+  # new cache version) but would turn every overflow into a miss for every
+  # cached read of the resource, not just for the dead result sets the bound
+  # is for.
   #
   # The bound is therefore how much dead weight every write-heavy test drags
   # through garbage collection, and an entry is a whole result set keyed by a

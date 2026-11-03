@@ -13,10 +13,11 @@ defmodule AshCache.Test.WidgetScaffold do
   defmacro __using__(opts) do
     extensions = Keyword.get(opts, :extensions, [])
     authorizers = Keyword.get(opts, :authorizers, [])
+    domain = Keyword.get(opts, :domain, AshCache.Test.Domain)
 
     quote do
       use Ash.Resource,
-        domain: AshCache.Test.Domain,
+        domain: unquote(domain),
         data_layer: Ash.DataLayer.Ets,
         extensions: unquote(extensions),
         authorizers: unquote(authorizers)
@@ -400,7 +401,12 @@ defmodule AshCache.Test.ExchangeRate do
   @moduledoc """
   Generic-action case: a call to an outside service, faked by a function that
   reports each run to the calling process. `"FAIL"` returns an error, `"NONE"`
-  an empty list and `"NIL"` nil. Calls need an actor.
+  an empty list and `"NIL"` nil. Calls need an actor. A write to a Comment
+  clears the cached results.
+
+  `:probed` reports each run to the `probe` process and waits for it to send
+  `{:answer, result}` (or `{:raise, message}`), so a test controls when a
+  run ends.
   """
 
   use Ash.Resource,
@@ -410,6 +416,8 @@ defmodule AshCache.Test.ExchangeRate do
 
   cache do
     action(:rates, ttl: to_timeout(hour: 1))
+    action(:probed, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Comment])
   end
 
   policies do
@@ -435,7 +443,76 @@ defmodule AshCache.Test.ExchangeRate do
         end
       end)
     end
+
+    action :probed, :integer do
+      argument(:probe, :term, allow_nil?: false)
+
+      run(fn input, _context ->
+        send(input.arguments.probe, {:action_run, self()})
+
+        receive do
+          {:answer, result} -> result
+          {:raise, message} -> raise message
+        end
+      end)
+    end
   end
+end
+
+defmodule AshCache.Test.Comment do
+  @moduledoc """
+  Changed-resource case: caches nothing itself. It uses the extension only so
+  its writes are counted, which clears the reads of resources that list it in
+  `clear_when_changed`.
+  """
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.Post do
+  @moduledoc "Other-resource case: a write to a Comment clears the cached Post reads."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Comment])
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.Feed do
+  @moduledoc "A second resource listing Comment, next to Post."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    store(:partial_store)
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Comment])
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.SelfListedWidget do
+  @moduledoc "A resource that lists itself in `clear_when_changed`."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.SelfListedWidget])
+  end
+
+  widget_attributes()
+  widget_actions()
 end
 
 defmodule AshCache.Test.Domain do
@@ -459,11 +536,16 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.BlockTtlWidget)
     resource(AshCache.Test.InfiniteBlockWidget)
     resource(AshCache.Test.InfiniteReadWidget)
+    resource(AshCache.Test.ProbedWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
     resource(AshCache.Test.RefreshedTenantWidget)
     resource(AshCache.Test.MapArgumentWidget)
     resource(AshCache.Test.LabelledWidget)
     resource(AshCache.Test.ExchangeRate)
+    resource(AshCache.Test.Comment)
+    resource(AshCache.Test.Post)
+    resource(AshCache.Test.Feed)
+    resource(AshCache.Test.SelfListedWidget)
   end
 end

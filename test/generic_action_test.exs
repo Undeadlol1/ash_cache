@@ -99,6 +99,18 @@ defmodule AshCache.GenericActionTest do
     assert runs() == ["EUR", "EUR"]
   end
 
+  test "a write to a resource in clear_when_changed throws the cached results away" do
+    rates("EUR")
+
+    AshCache.Test.Comment
+    |> Ash.Changeset.for_create(:create, %{name: "new"})
+    |> Ash.create!()
+
+    rates("EUR")
+
+    assert runs() == ["EUR", "EUR"]
+  end
+
   test "AshCache.invalidate/1 throws the cached results away" do
     rates("EUR")
     :ok = AshCache.invalidate(ExchangeRate)

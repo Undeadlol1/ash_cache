@@ -14,6 +14,26 @@ the cache.
 - If it is not found, the read runs as normal. If it returned at least one
   record, the result is saved under that key.
 
+### When many requests miss at once
+
+When a popular entry runs out or is cleared, many requests can miss it at
+the same moment. Only the first one asks the database. The others on the
+same server wait for its records and return those. They share only when
+their keys are equal, so two users, or two tenants, never get each other's
+records.
+
+If that first request fails or its process dies, one of the waiting
+requests asks the database instead. If it takes longer than 5 seconds, the
+waiting requests stop waiting and each ask the database themselves. Change
+the limit with:
+
+```elixir
+config :ash_cache, rebuild_timeout: :timer.seconds(10)
+```
+
+This happens on each server separately, whatever the store: with several
+servers, each one asks the database at most once per key at a time.
+
 Empty results are not saved by default. Otherwise a record that does not
 exist yet would keep being reported as missing until the entry expired.
 Set `cache_empty?: true` on the `read` to save them anyway.
@@ -33,12 +53,17 @@ it calls `run`, so they are checked on every call.
 Errors and `nil` are never saved. `[]` is saved only with
 `cache_empty?: true`.
 
+As with reads, identical calls that miss at the same moment on one server
+share one `run` call (see "When many requests miss at once" above), and
+`clear_when_changed` clears these entries too.
+
 ## What is in a key
 
 A key is built from:
 
 1. the resource,
-2. the resource's current **version value** (explained below),
+2. the resource's current **version value** (explained below), and the
+   version value of each resource listed in `clear_when_changed`,
 3. the name of the action,
 4. for a read, everything about the query that affects its result:
    arguments, filter, sort, limit, offset, page, distinct, select and load.
@@ -65,6 +90,11 @@ now never looked up again, so all
 of that resource's cached reads and generic actions are gone in one step,
 however many there were. The old entries are not deleted; they expire on their own.
 
+If the store loses the value (it was evicted, or the store restarted),
+AshCache picks a new one too. Values are random and never reused, so a lost
+value can only cause misses, never bring back old entries. See
+[Storage](storage.md#a-lost-entry-never-brings-back-old-data).
+
 The value is replaced after the database transaction commits, not before.
 A write that is rolled back never reaches that point, so it cannot leave
 wrong data in the cache.
@@ -72,6 +102,40 @@ wrong data in the cache.
 This is also why the cache clears per resource rather than per record:
 keys are built from whatever query was run, so a write cannot know which
 entries contain the record it changed.
+
+## Clearing when another resource changes
+
+```elixir
+# On MyApp.Blog.Post
+cache do
+  read :get_by_slug, ttl: :timer.hours(1)
+  clear_when_changed [MyApp.Blog.Comment]
+end
+```
+
+Every cached post key also contains the comment resource's version value.
+A comment write replaces that value, after commit like any other write, so
+every post key built before it is never looked up again. A rolled-back
+comment write does not replace it.
+
+The comment resource needs `extensions: [AshCache.Resource]`, because that
+is what makes its writes replace its version value. It does not need a
+`cache` block. It works like Rails' `belongs_to :post, touch: true`, where
+saving a comment updates the post's `updated_at` and so changes the post's
+cache key. AshCache changes the key without writing to the post.
+
+Some things follow from this:
+
+- The `[:ash_cache, :invalidate]` event is sent for the comment resource,
+  not for the post. The post's next read is a miss.
+- `AshCache.invalidate(MyApp.Blog.Comment)` clears cached post reads too.
+- It is not passed along. If `Post` lists `Comment` and `Comment` lists
+  `Author`, an author write does not clear posts. List `Author` on `Post`
+  too.
+- It is per resource too. A comment on one post clears the cached reads of
+  every post.
+- Each cached post read looks up one more version value per listed
+  resource.
 
 ## Filling the cache right after a write
 
@@ -121,11 +185,10 @@ In order from smallest to largest:
 ## Limits
 
 - **Related records can go stale.** `load` is part of the key, so an entry
-  can contain related records. Version values are per resource, though.
-  A write to the related resource changes its own version, not the parent's,
-  so the parent entry keeps serving the old related records until it
-  expires. Keep `load` off cached reads, or treat `ttl` as how stale that
-  data may get.
+  can contain related records. A write to the related resource changes its
+  own version value, not the parent's, so the parent entry keeps serving the
+  old related records until it expires. List the related resource in
+  `clear_when_changed` to fix this.
 - **Writes get slower.** Every write stores a new value in the cache. In one
   write-heavy test suite, caching the resource roughly doubled the suite's
   runtime. Measure before caching a resource that is written to constantly.

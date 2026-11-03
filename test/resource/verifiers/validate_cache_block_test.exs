@@ -42,11 +42,35 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlockTest do
     assert Exception.message(error) =~ "refresh :get_by_name"
   end
 
-  test "rejects a cache block with no read entries" do
-    dsl_state = without_cached_reads(CachedWidget.spark_dsl_config())
+  test "accepts a resource that caches nothing, so others can list it in clear_when_changed" do
+    assert ValidateCacheBlock.verify(AshCache.Test.Comment.spark_dsl_config()) == :ok
+  end
 
-    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
-    assert Exception.message(error) =~ "at least one `read`"
+  test "accepts clear_when_changed naming resources that use AshCache" do
+    assert ValidateCacheBlock.verify(AshCache.Test.Post.spark_dsl_config()) == :ok
+  end
+
+  defp clearing_when_changed(modules) do
+    Transformer.set_option(
+      CachedWidget.spark_dsl_config(),
+      [:cache],
+      :clear_when_changed,
+      modules
+    )
+  end
+
+  test "rejects clear_when_changed naming a module that is not an Ash resource" do
+    assert {:error, error} = ValidateCacheBlock.verify(clearing_when_changed([String]))
+    assert Exception.message(error) =~ "String"
+    assert Exception.message(error) =~ "not an Ash resource"
+  end
+
+  test "rejects clear_when_changed naming a resource without the AshCache extension" do
+    assert {:error, error} =
+             ValidateCacheBlock.verify(clearing_when_changed([AshCache.Test.Widget]))
+
+    assert Exception.message(error) =~ "AshCache.Test.Widget"
+    assert Exception.message(error) =~ "extensions: [AshCache.Resource]"
   end
 
   test "rejects a read that is not a read action" do

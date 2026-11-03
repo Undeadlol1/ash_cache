@@ -23,8 +23,10 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   @doc false
   def transform(dsl_state) do
-    store = Transformer.get_option(dsl_state, [:cache], :store)
-    block_ttl = Transformer.get_option(dsl_state, [:cache], :ttl)
+    # Read through Info so the defaults apply when there is no `cache` block.
+    store = AshCache.Info.cache_store!(dsl_state)
+    block_ttl = AshCache.Info.cache_ttl!(dsl_state)
+    clear_when_changed = AshCache.Info.cache_clear_when_changed!(dsl_state)
     entities = Transformer.get_entities(dsl_state, [:cache])
     refreshes = Enum.filter(entities, &match?(%AshCache.Refresh{}, &1))
 
@@ -45,7 +47,8 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
             store: store,
             ttl: AshCache.CachedRead.ttl(read, block_ttl),
             cache_empty?: read.cache_empty?,
-            store_options: read.store_options
+            store_options: read.store_options,
+            clear_when_changed: clear_when_changed
           ]
 
           attach_preparation(dsl_state, action, preparation_opts)
@@ -58,7 +61,8 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
             store: store,
             ttl: AshCache.CachedRead.ttl(cached, block_ttl),
             cache_empty?: cached.cache_empty?,
-            store_options: cached.store_options
+            store_options: cached.store_options,
+            clear_when_changed: clear_when_changed
           ]
 
           replace_action(dsl_state, %{action | run: {AshCache.Actions.RunThrough, run_opts}})

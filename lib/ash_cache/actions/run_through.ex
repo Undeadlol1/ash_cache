@@ -15,11 +15,16 @@ defmodule AshCache.Actions.RunThrough do
   (`AshCache.Key`). Errors, `nil` and (unless `cache_empty?: true`) `[]` are
   not cached. `Ash.ActionInput.set_context(input, %{ash_cache: :bypass})`
   skips the cache for one call.
+
+  Like reads, the key also holds the version of each resource listed in
+  `clear_when_changed`, and identical misses on one server share one `run`
+  call (`AshCache.Coalesce`).
   """
 
   use Ash.Resource.Actions.Implementation
 
   alias AshCache.CacheVersion
+  alias AshCache.Coalesce
   alias AshCache.Key
   alias AshCache.Store
 
@@ -36,15 +41,18 @@ defmodule AshCache.Actions.RunThrough do
         input.resource,
         input.action.name,
         %{arguments: input.arguments},
-        CacheVersion.current(store, input.resource),
+        CacheVersion.for_key(store, input.resource, Keyword.get(opts, :clear_when_changed, [])),
         actor: context.actor,
         tenant: context.tenant
       )
 
+    look_up(input, opts, context, store, key)
+  end
+
+  defp look_up(input, opts, context, store, key) do
     case Store.get(store, key) do
       {:ok, nil} ->
-        emit(:miss, input, store, error: nil)
-        run_and_cache(input, opts, context, store, key)
+        rebuild(input, opts, context, store, key)
 
       {:ok, result} ->
         emit(:hit, input, store)
@@ -54,6 +62,52 @@ defmodule AshCache.Actions.RunThrough do
         emit(:miss, input, store, error: reason)
         run_original(input, opts, context)
     end
+  end
+
+  defp rebuild(input, opts, context, store, key) do
+    case Coalesce.join({store, key}) do
+      {:shared, result} ->
+        emit(:hit, input, store)
+        {:ok, result}
+
+      :retry ->
+        look_up(input, opts, context, store, key)
+
+      :lead ->
+        lead(input, opts, context, store, key)
+
+      :alone ->
+        emit(:miss, input, store, error: nil)
+        run_and_cache(input, opts, context, store, key)
+    end
+  end
+
+  # Looks once more: the previous rebuild may have finished between this
+  # call's miss and it taking the lead. Waiters are always told the outcome,
+  # also when `run` fails or raises.
+  defp lead(input, opts, context, store, key) do
+    {outcome, result} =
+      case Store.get(store, key) do
+        {:ok, cached} when not is_nil(cached) ->
+          emit(:hit, input, store)
+          {{:ok, cached}, {:ok, cached}}
+
+        _miss_or_error ->
+          emit(:miss, input, store, error: nil)
+          result = run_and_cache(input, opts, context, store, key)
+
+          case ok_value(result) do
+            {:ok, value} -> {{:ok, value}, result}
+            :error -> {:failed, result}
+          end
+      end
+
+    Coalesce.release({store, key}, outcome)
+    result
+  catch
+    kind, reason ->
+      Coalesce.release({store, key}, :failed)
+      :erlang.raise(kind, reason, __STACKTRACE__)
   end
 
   defp run_and_cache(input, opts, context, store, key) do
