@@ -10,14 +10,12 @@ for 5 minutes, or for the `cache` block's `ttl` if you set one.
 Two things apply to every example:
 
 - A cached result is thrown away when the resource is changed through Ash,
-  when a resource listed in its `clear_when_changed` is changed through Ash,
-  when its `ttl` runs out, or when you call `AshCache.invalidate/1`.
-  Changes to other, unlisted resources don't throw it away.
+  and in a few other cases listed in [When the cache clears](clearing.md).
 - The default store keeps each server's cache in its own memory. If your
   app runs on several servers, a write clears the cache only on the server
   that made it, and the others serve the old result until `ttl` runs out.
-  To share one cache between servers, use the Nebulex adapter; see
-  [Running on several servers](storage.md#running-on-several-servers).
+  Sharing one cache between servers is experimental; see
+  [Running on several servers](storage.md#running-on-several-servers-experimental).
 
 ## Blog posts and help pages
 
@@ -342,20 +340,8 @@ AshCache caches such a read only when every resource it reaches is in
 so it is never stale. List each resource on the path, including the join
 resource of a `many_to_many`.
 
-Each resource listed in `clear_when_changed` needs the extension, even if it
-caches nothing:
-
-```elixir
-defmodule MyApp.Teams.Membership do
-  use Ash.Resource,
-    domain: MyApp.Teams,
-    extensions: [AshCache.Resource]
-end
-```
-
-Clearing is per resource, here too: one team's new member throws away the
-cached reads of every team. If the listed resource is written to all the
-time, most reads will miss. Measure first.
+Each listed resource needs the extension, even if it caches nothing. The
+rules are in [When the cache clears](clearing.md#related-resources).
 
 ## A blog post with its comments
 

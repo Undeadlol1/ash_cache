@@ -9,7 +9,24 @@ A cache for [Ash](https://hexdocs.pm/ash) resources. Reads come back from
 memory instead of the database, and the cache clears itself when the data
 changes.
 
-## What you get
+## TL;DR
+
+```elixir
+defmodule MyApp.Shop.Product do
+  use Ash.Resource,
+    domain: MyApp.Shop,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read :get_by_sku
+  end
+end
+```
+
+The first `get_by_sku` read goes to the database and its results are
+saved. The next reads come from the cache, not the database. That's it.
+
+## Features
 
 - **You pick what is cached.** List the reads to cache in a `cache` block on
   the resource.
@@ -31,7 +48,7 @@ def deps do
 end
 ```
 
-Cachex is the default store. To use another store, see the Storage guide.
+Cachex is the default store. To use another store, see the [Storage](documentation/topics/storage.md) guide.
 
 Add the supervisor to your application. It starts the cache stores:
 
@@ -45,28 +62,10 @@ children = [
 
 ## Usage
 
-Add the extension to a resource and list each read to cache. `ttl` is how
-long its results are kept, in milliseconds:
+### Set how long results are kept
 
-```elixir
-defmodule MyApp.Shop.Product do
-  use Ash.Resource,
-    domain: MyApp.Shop,
-    extensions: [AshCache.Resource]
-
-  cache do
-    read :get_by_sku, ttl: :timer.hours(1)
-    read :featured, ttl: :timer.minutes(1)
-  end
-end
-```
-
-`get_by_sku` and `featured` now come from the cache. Other reads go to the
-database as before. The cache clears when a product is created, updated or
-deleted.
-
-`ttl` is optional. A read without one keeps its results for 5 minutes. To
-change that for every read of the resource, set `ttl` on the block:
+`ttl` is in milliseconds. A read without one keeps its results for 5
+minutes. Set `ttl` on the block for every read, or on one read:
 
 ```elixir
 cache do
@@ -77,66 +76,32 @@ cache do
 end
 ```
 
-Here `get_by_sku` keeps results for an hour and `featured` for a minute.
+`get_by_sku` keeps results for an hour, `featured` for a minute.
 
-`ttl: :infinity` keeps results until the resource changes. Use it only
-for data that is rarely written: a write doesn't delete old results from
-memory, it only stops them being used, and they stay in memory until
-their `ttl` runs out.
+### Cache a generic action
 
-Generic actions, such as a call to another company's API, are cached the
-same way with `action :get_rate, ttl: :timer.minutes(10)`. On a cache hit
-the action's `run` function is not called. See "Data from another service"
-in [Examples](documentation/topics/examples.md).
-
-The [Examples](documentation/topics/examples.md) page shows the `cache`
-block for common app features.
-
-## When cached results are thrown away
-
-A cached result is thrown away in four cases:
-
-1. **The resource is changed through Ash.** Creating, updating or deleting
-   any product throws away every cached product read, right away.
-2. **A resource listed in `clear_when_changed` is changed through Ash.**
-   See below.
-3. **The `ttl` runs out**, even if nothing changed.
-4. **You call `AshCache.invalidate(MyApp.Shop.Product)`.** Use this when the
-   data changed without Ash, for example after an import.
-
-Changes to other resources don't count unless you list them. If a cached
-post read includes the post's comments, list the comment resource on the
-post:
+For example, a call to another company's API:
 
 ```elixir
-defmodule MyApp.Blog.Post do
-  use Ash.Resource,
-    domain: MyApp.Blog,
-    extensions: [AshCache.Resource]
-
-  cache do
-    read :get_by_slug, ttl: :timer.hours(1)
-    clear_when_changed [MyApp.Blog.Comment]
-  end
-end
-
-defmodule MyApp.Blog.Comment do
-  use Ash.Resource,
-    domain: MyApp.Blog,
-    extensions: [AshCache.Resource]
+cache do
+  action :get_rate, ttl: :timer.minutes(10)
 end
 ```
 
-Now creating, updating or deleting any comment throws away every cached
-post read, the same way a change to a post does. The comment resource
-needs the `AshCache.Resource` extension so AshCache sees its changes. It
-does not need a `cache` block. If it does not have the extension, `Post`
-fails to compile.
+On a cache hit, the action's `run` function is not called.
+
+### Clearing the cache
+
+Writes through Ash clear the cache by themselves. To clear it when a
+related resource changes, or by hand after an import, see
+[When the cache clears](documentation/topics/clearing.md).
 
 ## Learn more
 
 - [Examples](documentation/topics/examples.md): the `cache` block for common
   app features, and when not to cache.
+- [When the cache clears](documentation/topics/clearing.md): what clears
+  it, related resources, and clearing by hand.
 - [Storage](documentation/topics/storage.md): the built-in stores, running
   on several nodes, and writing your own adapter.
 - [How to test with AshCache](documentation/topics/testing.md): check that a
@@ -155,9 +120,12 @@ fails to compile.
   filter over another resource is cached only when that resource is in
   `clear_when_changed`; otherwise the read is not cached.
 - **The default store is per server.** On several servers, a write clears
-  the cache only on the server that made it. To share one cache, use the
-  Nebulex adapter with Redis or a partitioned cache. See
-  [Storage](documentation/topics/storage.md#running-on-several-servers).
+  the cache only on the server that made it. Sharing one cache between
+  servers is experimental and not tested on real servers; see
+  [Storage](documentation/topics/storage.md#running-on-several-servers-experimental).
+- **`ttl: :infinity` holds memory.** A write doesn't delete old results,
+  it only stops them being used. They stay in memory until their `ttl`
+  runs out, so use `:infinity` only for data that is rarely written.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
 

@@ -120,4 +120,43 @@ defmodule AshCache.MultiServerTest do
     refute after_both == before
     assert on(a, CacheVersion, :current, [PartitionedCache, Resource]) == after_both
   end
+
+  describe "real Ash reads and writes" do
+    alias AshCache.Test.PeerWidgets
+
+    setup %{peers: [{_, a}, {_, b}]} do
+      for node <- [a, b] do
+        on(node, PeerWidgets, :start, [])
+        on(node, PeerWidgets, :forward_events, [self()])
+      end
+
+      :ok
+    end
+
+    test "a read cached on one server is a hit on another", %{peers: [{_, a}, {_, b}]} do
+      on(a, PeerWidgets, :create, [1])
+
+      assert on(a, PeerWidgets, :read, []) == [1]
+      assert_receive {:peer_event, ^a, :miss}
+
+      assert on(b, PeerWidgets, :read, []) == [1]
+      assert_receive {:peer_event, ^b, :hit}
+      refute_received {:peer_event, ^b, :miss}
+    end
+
+    test "an Ash write on one server makes the next read on another miss", %{
+      peers: [{_, a}, {_, b}]
+    } do
+      widget = on(a, PeerWidgets, :create, [1])
+      assert on(a, PeerWidgets, :read, []) == [1]
+      assert on(b, PeerWidgets, :read, []) == [1]
+      assert_receive {:peer_event, ^b, :hit}
+
+      on(a, PeerWidgets, :update, [widget, 2])
+
+      assert on(b, PeerWidgets, :read, []) == []
+      assert_receive {:peer_event, ^b, :miss}
+      assert on(a, PeerWidgets, :read, []) == [2]
+    end
+  end
 end

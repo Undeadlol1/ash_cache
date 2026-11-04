@@ -1,6 +1,8 @@
 defmodule AshCache.ClearWhenChangedTest do
   use ExUnit.Case, async: true
 
+  alias AshCache.Test.Article
+  alias AshCache.Test.CachedComment
   alias AshCache.Test.CachedWidget
   alias AshCache.Test.Comment
   alias AshCache.Test.Events
@@ -126,6 +128,23 @@ defmodule AshCache.ClearWhenChangedTest do
 
     assert_cleared(Post)
     assert_cleared(Feed)
+  end
+
+  test "a listed resource with its own cache: a comment write clears both, an article write only articles" do
+    prime(CachedComment)
+    prime(Article)
+
+    create!(CachedComment, "first")
+    Events.drain()
+
+    assert_cleared(CachedComment)
+    assert_cleared(Article)
+
+    create!(Article, "second")
+    Events.drain()
+
+    assert_still_cached(CachedComment)
+    assert_cleared(Article)
   end
 
   test "a resource that lists itself is still cleared by its own writes" do

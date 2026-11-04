@@ -515,6 +515,33 @@ defmodule AshCache.Test.SelfListedWidget do
   widget_actions()
 end
 
+defmodule AshCache.Test.CachedComment do
+  @moduledoc "A listed resource that also caches its own reads."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.Article do
+  @moduledoc "Lists CachedComment, which has a cache block of its own."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.CachedComment])
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
@@ -547,5 +574,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.Post)
     resource(AshCache.Test.Feed)
     resource(AshCache.Test.SelfListedWidget)
+    resource(AshCache.Test.CachedComment)
+    resource(AshCache.Test.Article)
   end
 end

@@ -38,9 +38,9 @@ where it caches two production resources.
   unless you set another adapter.
 - Store adapters: `Cachex` (default), `ProcessLocal` (per-process isolation
   for async tests) and `Noop`, behind `AshCache.Store.Adapter`.
-- `AshCache.Store.Adapters.Nebulex` stores entries in the app's own Nebulex
-  cache, so several servers can share one cache (Redis, partitioned,
-  replicated). Nebulex is an optional dependency.
+- Experimental: `AshCache.Store.Adapters.Nebulex` stores entries in the
+  app's own Nebulex cache, so several servers can share one cache. Not yet
+  tested on real servers. Nebulex is an optional dependency.
 - A version value the store loses (eviction, restart, a server leaving a
   distributed cache) is replaced by a new random one, so it can never bring
   back entries cached before a write. A write whose new version value the
