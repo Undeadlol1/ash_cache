@@ -24,11 +24,11 @@ defmodule AshCache.StampedeTest do
 
     for _ <- 1..count do
       Task.async(fn ->
-        Process.put(:ash_cache_adapter, Cachex)
+        Process.put(:ash_cache_adapter, Keyword.get(opts, :adapter, Cachex))
 
         ProbedWidget
         |> Ash.Query.for_read(:probed, %{probe: test}, Keyword.take(opts, [:context]))
-        |> Ash.read(Keyword.drop(opts, [:context]))
+        |> Ash.read(Keyword.drop(opts, [:context, :adapter]))
       end)
     end
   end
@@ -47,6 +47,18 @@ defmodule AshCache.StampedeTest do
         fn -> Registry.count(AshCache.Coalesce.Waiters) == count end,
         2_000
       )
+  end
+
+  test "with ProcessLocal, each process reads for itself: its cache is its own" do
+    tasks = start_reads(2, adapter: AshCache.Store.Adapters.ProcessLocal)
+
+    first = next_data_layer_read()
+    second = next_data_layer_read()
+    answer(first, 1)
+    answer(second, 2)
+
+    assert tasks |> Task.await_many() |> Enum.map(fn {:ok, [w]} -> w.value end) |> Enum.sort() ==
+             [1, 2]
   end
 
   test "many identical misses make one data-layer read and all get its result" do

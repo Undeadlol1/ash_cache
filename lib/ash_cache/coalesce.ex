@@ -20,6 +20,9 @@ defmodule AshCache.Coalesce do
   concurrent misses can each run the function.
   """
 
+  alias AshCache.Store
+  alias AshCache.Store.Adapters.ProcessLocal
+
   @leaders AshCache.Coalesce.Leaders
   @waiters AshCache.Coalesce.Waiters
   @default_timeout to_timeout(second: 5)
@@ -41,6 +44,7 @@ defmodule AshCache.Coalesce do
   """
   @spec join(term()) :: :lead | {:shared, term()} | :retry | :alone
   def join(key) do
+    key = scoped(key)
     # Registered as a waiter before trying to lead: a leader removes itself
     # before telling its waiters, so whoever sees it still leading is
     # already on the list it tells.
@@ -64,11 +68,18 @@ defmodule AshCache.Coalesce do
   @doc "Tells everyone waiting on `key` the leader's outcome: `{:ok, records}` or `:failed`."
   @spec release(term(), {:ok, term()} | :failed) :: :ok
   def release(key, outcome) do
+    key = scoped(key)
     Registry.unregister(@leaders, key)
 
     Registry.dispatch(@waiters, key, fn waiters ->
       for {_pid, reply_to} <- waiters, do: send(reply_to, {reply_to, outcome})
     end)
+  end
+
+  # ProcessLocal gives each process its own cache, so another process's
+  # read, or its version value, is not this one's to share.
+  defp scoped(key) do
+    if Store.adapter() == ProcessLocal, do: {self(), key}, else: key
   end
 
   defp await(leader, reply_to) do

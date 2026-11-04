@@ -559,7 +559,7 @@ defmodule AshCache.Test.ShippingQuote do
   def load(_query, _opts, _context), do: [:parcel_count, parcels: [:name]]
 
   @impl true
-  def calculate(records, opts, context) do
+  def calculate(records, _opts, context) do
     send(self(), {:calculated, Enum.map(records, & &1.name)})
 
     if Enum.any?(records, &(&1.name == "fail")) do
