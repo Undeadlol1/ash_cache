@@ -8,4 +8,6 @@ Application.put_env(:ash_cache, :adapter, AshCache.Store.Adapters.ProcessLocal)
     strategy: :one_for_one
   )
 
-ExUnit.start()
+# The multi-server tests start real nodes and take most of the suite's time.
+# Run them with `mix test --include multi_server`; CI always does.
+ExUnit.start(exclude: [:multi_server])
