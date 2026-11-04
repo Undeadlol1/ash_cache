@@ -40,9 +40,14 @@ wrong data cached.
 
 ## Related resources
 
-A cached read that loads records of another resource, such as a post with
-its comments, keeps the old comments until `ttl` runs out. To clear it when
-a comment changes, list the comment resource on the post:
+Related records loaded with `load`, such as a post's comments, are read
+fresh on every request. They need nothing.
+
+Values computed from another resource are different: a post's comment
+count, or a filter on its comments. They are saved with the cached post, so
+AshCache caches such a read only when the other resource clears it.
+Otherwise the read goes to the database every time. To cache it, list the
+comment resource on the post:
 
 ```elixir
 defmodule MyApp.Blog.Post do
@@ -80,8 +85,8 @@ Things to know:
   linked through a `PostTag` resource, tagging a post writes a `PostTag`,
   not a `Tag`. List `PostTag`, and `Tag` too if tag names can change.
 - **Deletes done by the database are not seen.** If deleting a post makes
-  the database delete its comments (`ON DELETE CASCADE`), cached comment
-  reads keep the deleted comments. Add `clear_when_changed [MyApp.Blog.Post]`
+  the database delete its comments (`ON DELETE CASCADE`), and `Comment`
+  caches its own reads, those keep the deleted comments. Add `clear_when_changed [MyApp.Blog.Post]`
   to `Comment`, so deleting a post clears them.
 - **Foreign key names don't matter.** Only the resource is listed, so a
   relationship on any column works the same.

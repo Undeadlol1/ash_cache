@@ -13,6 +13,7 @@ defmodule AshCache.DocsTest do
     AshCache.CachedRead
     AshCache.Changes.InvalidateCache
     AshCache.Coalesce
+    AshCache.Dependencies
     AshCache.Info
     AshCache.Key
     AshCache.Preparations.ReadThrough

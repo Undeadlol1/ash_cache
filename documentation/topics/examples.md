@@ -259,11 +259,11 @@ end
 ```
 
 Numbers like these are usually counts or sums of other records, loaded
-with Ash aggregates. Writes to those other records do not clear this
-resource's cache, so the numbers are up to `ttl` old. Pick the `ttl` you
-would be happy to print as "updated every minute". If the other records
-change rarely, list them in `clear_when_changed` instead (see "Team
-dashboard and its members" below).
+with Ash aggregates. AshCache caches them only when those other records are
+listed in `clear_when_changed` (see "Reads that include another
+resource" below), and a write to them then throws the numbers away. If the
+other records are written all the time, that clears the cache all the
+time: leave such a dashboard uncached.
 
 Don't cache numbers that someone acts on right away, such as an account
 balance before a transfer or a usage limit that blocks requests.
@@ -328,9 +328,17 @@ MyApp.Money.ExchangeRate
 
 ## Reads that include another resource
 
-The sections below cache reads that `load` records of another resource.
-Without `clear_when_changed`, a change to those records shows up only when
-`ttl` runs out. With it, the change throws away the cached reads right away.
+Related records loaded with `load` are read fresh on every request, cache
+hit or not: a post's comments, a product's prices, an order's items, a
+profile's avatar. They need nothing.
+
+Values computed from another resource are part of the cached rows: counts
+and sums (aggregates), calculations that use them or reach another
+resource, and filters, sorts or policies that reach another resource.
+AshCache caches such a read only when every resource it reaches is in
+`clear_when_changed`. Otherwise the read goes to the database every time,
+so it is never stale. List each resource on the path, including the join
+resource of a `many_to_many`.
 
 Each listed resource needs the extension, even if it caches nothing. The
 rules are in [When the cache clears](clearing.md#related-resources).
@@ -340,72 +348,20 @@ rules are in [When the cache clears](clearing.md#related-resources).
 A post page that shows the post and its comments.
 
 ```elixir
-defmodule MyApp.Blog.Post do
-  use Ash.Resource,
-    domain: MyApp.Blog,
-    extensions: [AshCache.Resource]
-
-  cache do
-    read :get_by_slug_with_comments, ttl: :timer.hours(1)
-    clear_when_changed [MyApp.Blog.Comment]
-  end
-end
-```
-
-A new, edited or deleted comment shows up on the next page view instead of
-an hour later.
-
-## A product with its prices
-
-A product page that loads the product's prices, kept as their own records
-(one per currency or per customer group).
-
-```elixir
 cache do
-  read :get_by_sku, ttl: :timer.hours(1)
-  clear_when_changed [MyApp.Shop.Price]
+  read :get_by_slug, ttl: :timer.hours(1)
 end
 ```
-
-A price change throws away the cached product page, so visitors see the new
-price on their next view. On several servers the other servers still show
-the old price until `ttl` runs out, so read the price you charge with the
-cache skipped.
-
-## A customer's order list with the items in each order
-
-A "My orders" page that lists a customer's orders and the items in each.
 
 ```elixir
-defmodule MyApp.Shop.Order do
-  use Ash.Resource,
-    domain: MyApp.Shop,
-    extensions: [AshCache.Resource]
-
-  cache do
-    read :for_customer, ttl: :timer.minutes(30)
-    clear_when_changed [MyApp.Shop.OrderItem]
-  end
-end
+MyApp.Blog.Post
+|> Ash.Query.for_read(:get_by_slug, %{slug: slug})
+|> Ash.Query.load(:comments)
+|> Ash.read_one!()
 ```
 
-Adding, changing or removing an item throws away
-the cached list. Each customer still gets their own entry, because the
-actor is part of the key.
-
-## A user profile with its avatar
-
-A profile card shown next to every comment and message, with the avatar
-stored as its own resource.
-
-```elixir
-cache do
-  read :get_profile, ttl: :timer.hours(6)
-  clear_when_changed [MyApp.Accounts.Avatar]
-end
-```
-
-A new avatar shows up right away instead of hours later.
+The post comes from the cache and its comments from the database, so a new
+comment shows up on the next page view without listing anything.
 
 ## Team dashboard and its members
 
@@ -418,24 +374,10 @@ cache do
 end
 ```
 
-People join and leave teams a few times a day, so a long `ttl` is fine:
-each join or leave throws away the cached dashboard.
-
-## A restaurant menu with its dishes
-
-A menu page that lists the dishes on the menu, each a record of its own.
-
-```elixir
-cache do
-  read :get_with_items, ttl: :timer.hours(12)
-  clear_when_changed [MyApp.Menus.MenuItem]
-end
-```
-
-A dish that sold out or changed price shows up right away. A dish
-written by the nightly import does not, because the import does not go
-through Ash: call `AshCache.invalidate(MyApp.Menus.MenuItem)` after it.
-That throws away the cached menus too.
+The member count is an aggregate over memberships, so `Membership` is
+listed: each join or leave throws away the cached dashboard. People join
+and leave teams a few times a day, so a long `ttl` is fine. Without the
+listing, the dashboard is not cached at all.
 
 ## Data that also changes outside Ash
 

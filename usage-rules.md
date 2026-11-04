@@ -72,16 +72,19 @@ when a requirement demands them.
   themselves.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
   Choose `ttl` per read: long for content that rarely changes, short for
-  results that change without a write (time-based filters, aggregates over
-  other resources, data written outside Ash).
+  results that change without a write (time-based filters, data written
+  outside Ash).
 
 ## Rules
 
 - The cache key is built per actor and tenant, however they are passed
   (code interface, `Ash.Query.for_read/4` or `Ash.read/2`).
-- A cached read that `load`s related data keeps old related records until
-  `ttl`, unless the related resource is in `clear_when_changed`. Add it there,
-  or pick a short `ttl`.
+- Related records a cached read `load`s are read fresh on every request;
+  they need nothing. A read whose rows are computed from another resource
+  (an aggregate, a calculation over one, or a filter, sort or policy that
+  reaches another resource) is cached only when every resource it reaches
+  is in `clear_when_changed`, including a `many_to_many` join resource.
+  Otherwise it always goes to the data layer. Do not shorten `ttl` for this.
 - Do not cache values that must be exact at the moment of use: stock counts
   at checkout, balances, permissions checked for a payment.
 - The default store is in memory per node. On several nodes a write clears
