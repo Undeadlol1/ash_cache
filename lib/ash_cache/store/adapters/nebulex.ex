@@ -1,5 +1,7 @@
 defmodule AshCache.Store.Adapters.Nebulex do
   @moduledoc """
+  Experimental: not yet tested on real servers.
+
   Stores entries in your own [Nebulex](https://hexdocs.pm/nebulex) cache, so
   several servers can share one cache: Nebulex handles the servers (local,
   partitioned, replicated, multilevel, Redis and so on).

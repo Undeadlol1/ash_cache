@@ -119,8 +119,7 @@ however many there were. The old entries are not deleted; they expire on their o
 
 If the store loses the value (it was evicted, or the store restarted),
 AshCache picks a new one too. Values are random and never reused, so a lost
-value can only cause misses, never bring back old entries. See
-[Storage](storage.md#a-lost-entry-never-brings-back-old-data).
+value can only cause misses, never bring back old entries.
 
 The value is replaced after the database transaction commits, not before.
 A write that is rolled back never reaches that point, so it cannot leave
@@ -151,18 +150,8 @@ is what makes its writes replace its version value. It does not need a
 saving a comment updates the post's `updated_at` and so changes the post's
 cache key. AshCache changes the key without writing to the post.
 
-Some things follow from this:
-
-- The `[:ash_cache, :invalidate]` event is sent for the comment resource,
-  not for the post. The post's next read is a miss.
-- `AshCache.invalidate(MyApp.Blog.Comment)` clears cached post reads too.
-- It is not passed along. If `Post` lists `Comment` and `Comment` lists
-  `Author`, an author write does not clear posts. List `Author` on `Post`
-  too.
-- It is per resource too. A comment on one post clears the cached reads of
-  every post.
-- Each cached post read looks up one more version value per listed
-  resource.
+What this means for your app is in
+[When the cache clears](clearing.md#related-resources).
 
 ## Filling the cache right after a write
 
@@ -215,11 +204,17 @@ In order from smallest to largest:
 
 ## Limits
 
-- **Related records can go stale.** `load` is part of the key, so an entry
-  can contain related records. A write to the related resource changes its
-  own version value, not the parent's, so the parent entry keeps serving the
-  old related records until it expires. List the related resource in
-  `clear_when_changed` to fix this.
+- **Values computed from another resource need it listed.** A cached entry
+  holds the rows and what the data layer computed with them: aggregates,
+  calculations, and the effect of a filter, sort or policy. It does not hold
+  related records: Ash loads those after the rows on every read, so they
+  are always fresh. When the computed part reaches another resource,
+  AshCache stores the result only if every resource on the way is the
+  resource itself or in `clear_when_changed` (a `many_to_many` counts its
+  join resource too). Otherwise the read goes to the data layer every time.
+  A value loaded under a name of its own (`Ash.Query.calculate/4`,
+  `Ash.Query.aggregate/4`) cannot be traced, so it is never cached. See
+  `AshCache.Dependencies`.
 - **Writes get slower.** Every write stores a new value in the cache. In one
   write-heavy test suite, caching the resource roughly doubled the suite's
   runtime. Measure before caching a resource that is written to constantly.

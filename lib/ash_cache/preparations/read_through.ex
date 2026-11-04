@@ -31,6 +31,7 @@ defmodule AshCache.Preparations.ReadThrough do
 
   alias AshCache.CacheVersion
   alias AshCache.Coalesce
+  alias AshCache.Dependencies
   alias AshCache.Key
   alias AshCache.Store
 
@@ -80,7 +81,7 @@ defmodule AshCache.Preparations.ReadThrough do
 
       {:ok, records} ->
         emit_read_event(:hit, query, store)
-        serve_cached(query, records)
+        serve(query, records)
 
       {:error, reason} ->
         emit_read_event(:miss, query, store, error: reason)
@@ -92,7 +93,7 @@ defmodule AshCache.Preparations.ReadThrough do
     case Coalesce.join({store, key}) do
       {:shared, records} ->
         emit_read_event(:hit, query, store)
-        serve_cached(query, records)
+        serve(query, records)
 
       :retry ->
         read_through(query, opts, context, lease)
@@ -114,7 +115,7 @@ defmodule AshCache.Preparations.ReadThrough do
       {:ok, records} when not is_nil(records) ->
         release(lease, {:ok, records})
         emit_read_event(:hit, query, store)
-        serve_cached(query, records)
+        serve(query, records)
 
       _miss_or_error ->
         emit_read_event(:miss, query, store, error: nil)
@@ -125,12 +126,6 @@ defmodule AshCache.Preparations.ReadThrough do
   # Ash loads the query's aggregates onto a set result by reading this
   # action again, which hits this cache again, and so on forever. The
   # cached records already hold them: their aggregates are part of the key.
-  defp serve_cached(query, records) do
-    query
-    |> Ash.Query.unset(:aggregates)
-    |> Ash.Query.set_result({:ok, records})
-  end
-
   defp release_on_exit(query, callback, lease) do
     callback.(query)
   after
@@ -200,7 +195,8 @@ defmodule AshCache.Preparations.ReadThrough do
     store_opts = Keyword.put(Keyword.get(opts, :store_options, []), :ttl, ttl)
 
     Ash.Query.after_action(query, fn _query, records ->
-      if cacheable?(records, cache_empty?) do
+      if cacheable?(records, cache_empty?) and
+           Dependencies.all_known?(query, records, Keyword.get(opts, :clear_when_changed, [])) do
         Store.put(store, key, records, store_opts)
       end
 
@@ -211,4 +207,13 @@ defmodule AshCache.Preparations.ReadThrough do
   end
 
   defp cacheable?(records, cache_empty?), do: cache_empty? or records not in [nil, []]
+
+  # The rows already hold the aggregates they were cached with. Left on the
+  # query, Ash would compute them again over rows it was handed, and that
+  # load never returns.
+  defp serve(query, records) do
+    query
+    |> Ash.Query.unset(:aggregates)
+    |> Ash.Query.set_result({:ok, records})
+  end
 end

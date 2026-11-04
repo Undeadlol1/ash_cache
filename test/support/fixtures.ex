@@ -100,6 +100,7 @@ defmodule AshCache.Test.CachedWidget do
     read(:read, ttl: to_timeout(hour: 1))
     read(:get_by_name, ttl: to_timeout(hour: 1))
     read(:paged, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Part])
   end
 
   widget_attributes()
@@ -124,7 +125,7 @@ end
 defmodule AshCache.Test.Part do
   @moduledoc "Related records for CachedWidget's aggregate."
 
-  use AshCache.Test.WidgetScaffold
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   attributes do
     uuid_primary_key(:id)
@@ -589,6 +590,7 @@ defmodule AshCache.Test.Shipment do
   cache do
     read(:cached_read, ttl: to_timeout(hour: 1))
     calculation(:quote, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Parcel])
   end
 
   attributes do
@@ -626,7 +628,7 @@ end
 defmodule AshCache.Test.Parcel do
   @moduledoc "A shipment's parcel, so a calculation can depend on related records."
 
-  use AshCache.Test.WidgetScaffold
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
 
   attributes do
     uuid_primary_key(:id)
@@ -640,6 +642,33 @@ defmodule AshCache.Test.Parcel do
   actions do
     defaults([:read, :destroy, create: :*, update: :*])
   end
+end
+
+defmodule AshCache.Test.CachedComment do
+  @moduledoc "A listed resource that also caches its own reads."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+  end
+
+  widget_attributes()
+  widget_actions()
+end
+
+defmodule AshCache.Test.Article do
+  @moduledoc "Lists CachedComment, which has a cache block of its own."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:read, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.CachedComment])
+  end
+
+  widget_attributes()
+  widget_actions()
 end
 
 defmodule AshCache.Test.Domain do
@@ -677,5 +706,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.SelfListedWidget)
     resource(AshCache.Test.Shipment)
     resource(AshCache.Test.Parcel)
+    resource(AshCache.Test.CachedComment)
+    resource(AshCache.Test.Article)
   end
 end

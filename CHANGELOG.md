@@ -38,9 +38,9 @@ where it caches two production resources.
   unless you set another adapter.
 - Store adapters: `Cachex` (default), `ProcessLocal` (per-process isolation
   for async tests) and `Noop`, behind `AshCache.Store.Adapter`.
-- `AshCache.Store.Adapters.Nebulex` stores entries in the app's own Nebulex
-  cache, so several servers can share one cache (Redis, partitioned,
-  replicated). Nebulex is an optional dependency.
+- Experimental: `AshCache.Store.Adapters.Nebulex` stores entries in the
+  app's own Nebulex cache, so several servers can share one cache. Not yet
+  tested on real servers. Nebulex is an optional dependency.
 - A version value the store loses (eviction, restart, a server leaving a
   distributed cache) is replaced by a new random one, so it can never bring
   back entries cached before a write. A write whose new version value the
@@ -51,6 +51,14 @@ where it caches two production resources.
   fails, another waiting request runs it; after `rebuild_timeout` (5 seconds
   by default) the others stop waiting and read for themselves. Cached
   generic actions do the same with their `run` call.
+- A read whose rows are computed from another resource (an aggregate, a
+  calculation over one, or a filter, sort or policy that reaches another
+  resource) is cached only when every resource it reaches is the resource
+  itself or in `clear_when_changed`; otherwise it goes to the data layer
+  every time. Related records loaded with `load` are read fresh on every
+  read and need nothing. A per-owner policy (`relates_to_actor_via` over a
+  `belongs_to`) compares only the row's own foreign key and needs nothing
+  either. A cache hit no longer hangs when the read loads an aggregate.
 - `AshCache.Supervisor` starts one store per declared cache with no manual
   wiring beyond a single child spec.
 

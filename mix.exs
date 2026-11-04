@@ -63,6 +63,7 @@ defmodule AshCache.MixProject do
       extras: [
         {"README.md", title: "Home"},
         "documentation/topics/examples.md",
+        "documentation/topics/clearing.md",
         "documentation/topics/how-it-works.md",
         "documentation/topics/storage.md",
         "documentation/topics/testing.md",
@@ -82,6 +83,7 @@ defmodule AshCache.MixProject do
           AshCache.Key,
           AshCache.CacheVersion,
           AshCache.Coalesce,
+          AshCache.Dependencies,
           AshCache.Preparations.ReadThrough,
           AshCache.Actions.RunThrough,
           AshCache.Changes.InvalidateCache,
