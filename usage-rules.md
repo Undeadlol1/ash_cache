@@ -45,6 +45,14 @@ when a requirement demands them.
   `nil` are never cached. The action must have a return type and its `run`
   must not be a Reactor, or compilation fails. Policies are still checked
   on every call.
+- `calculation :name, ttl: ...` caches a module calculation
+  (`Ash.Resource.Calculation`) per record, keyed by its arguments, actor,
+  tenant and every attribute and `load/3` field of the record. Writes do
+  not clear it; a changed record gets a new key. Use it only for a
+  calculation that depends on the record alone: one that reads an API or
+  the clock serves old answers until `ttl`. Expression calculations fail
+  compilation; they need no entry. Events:
+  `[:ash_cache, :calculation, :hit | :miss]`.
 - Options on the block: `store :name` gives the resource its own store
   (default `:ash_cache`); `ttl` sets the lifetime for reads without their own.
   With the Nebulex adapter the store is the Nebulex cache module:

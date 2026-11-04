@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-11-04
 
 First packaged release. Extracted from the application it was written in,
 where it caches two production resources.
@@ -33,6 +33,11 @@ where it caches two production resources.
   and `[:ash_cache, :invalidate]`.
 - `AshCache.Testing.capture_events/0` sends a test the cache events its own
   code caused, so cache behaviour can be checked in `async: true` tests.
+- `calculation :name, ttl: ...` caches a module calculation's result per
+  record, keyed by its arguments, the actor, the tenant and every value it
+  can read from the record. Writes don't clear these entries: a changed
+  record gives a new key. Expression calculations are rejected at compile
+  time. Sends `[:ash_cache, :calculation, :hit | :miss]`.
 - Cachex is an optional dependency. Add it to your deps to use the default
   store. Without it, AshCache fails at startup with a message saying so,
   unless you set another adapter.
