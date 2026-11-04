@@ -90,6 +90,19 @@ end
 
 On a cache hit, the action's `run` function is not called.
 
+### Cache a slow calculation
+
+A calculation written as an Elixir module is cached one result per record:
+
+```elixir
+cache do
+  calculation :shipping_quote, ttl: :timer.hours(1)
+end
+```
+
+Writes don't clear these results; they run out with their `ttl`. See
+"A slow calculation" in [Examples](documentation/topics/examples.md).
+
 ### Clearing the cache
 
 Writes through Ash clear the cache by themselves. To clear it when a
@@ -123,6 +136,10 @@ related resource changes, or by hand after an import, see
   the cache only on the server that made it. Sharing one cache between
   servers is experimental and not tested on real servers; see
   [Storage](documentation/topics/storage.md#running-on-several-servers-experimental).
+- **Cached calculations are not cleared by writes.** A changed record gets
+  a new result at once, but a calculation that reads something outside the
+  record (an API, the clock) can serve an old answer until its `ttl` runs
+  out.
 - **`ttl: :infinity` holds memory.** A write doesn't delete old results,
   it only stops them being used. They stay in memory until their `ttl`
   runs out, so use `:infinity` only for data that is rarely written.

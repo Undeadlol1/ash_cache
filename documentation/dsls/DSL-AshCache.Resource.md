@@ -13,6 +13,7 @@ Caches the read and generic actions you declare, each with its own lifetime.
       cache do
         read :get_by_sku, ttl: :timer.hours(1)
         action :exchange_rate, ttl: :timer.minutes(10)
+        calculation :shipping_quote, ttl: :timer.hours(1)
       end
     end
 
@@ -29,15 +30,23 @@ the actor and the tenant, with the same `ttl` rules. On a hit its `run` is
 not called (see `AshCache.Actions.RunThrough`). Writes clear these entries
 too.
 
-Actions without a `read` or `action` entry are never cached.
+Each `calculation` caches a module calculation's result per record, keyed
+by its arguments, the actor, the tenant and every value it can read from
+the record (see `AshCache.Calculations.CalculateThrough`). It lives as
+long as its own `ttl`, else the block's. Writes do not clear these
+entries: a changed record gives a new key. Expression calculations are
+rejected; they already run in the database and cached reads hold them.
+
+Actions and calculations without an entry are never cached.
 
 
 ## cache
-Which reads and generic actions to cache, where, and for how long.
+Which reads, generic actions and calculations to cache, where, and for how long.
 
 ### Nested DSLs
  * [read](#cache-read)
  * [action](#cache-action)
+ * [calculation](#cache-calculation)
  * [refresh](#cache-refresh)
 
 
@@ -49,7 +58,7 @@ Which reads and generic actions to cache, where, and for how long.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`store`](#cache-store){: #cache-store } | `atom` | `:ash_cache` | Name of the cache store. Distinct stores isolate eviction and clearing. With `AshCache.Store.Adapters.Nebulex`, the Nebulex cache module. |
-| [`ttl`](#cache-ttl){: #cache-ttl } | `pos_integer \| :infinity` | `300000` | Milliseconds a cached entry lives before it expires, for every `read` and `action` that does not set its own `ttl`. `:infinity` never expires; it is never the default. |
+| [`ttl`](#cache-ttl){: #cache-ttl } | `pos_integer \| :infinity` | `300000` | Milliseconds a cached entry lives before it expires, for every `read`, `action` and `calculation` that does not set its own `ttl`. `:infinity` never expires; it is never the default. |
 | [`clear_when_changed`](#cache-clear_when_changed){: #cache-clear_when_changed } | `list(atom)` | `[]` | Other resources whose create, update or destroy also clears this resource's cached reads and generic actions, e.g. `clear_when_changed [MyApp.Blog.Comment]`. Each one must use the `AshCache.Resource` extension, even if it caches nothing itself. |
 
 
@@ -119,6 +128,38 @@ Cache this generic action, with its own lifetime and settings.
 ### Introspection
 
 Target: `AshCache.CachedAction`
+
+### cache.calculation
+```elixir
+calculation name
+```
+
+
+Cache this module calculation's result per record, with its own lifetime.
+
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#cache-calculation-name){: #cache-calculation-name .spark-required} | `atom` |  | The calculation to cache. |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`ttl`](#cache-calculation-ttl){: #cache-calculation-ttl } | `pos_integer \| :infinity` |  | Milliseconds a cached entry of this read lives before it expires, or `:infinity` to never expire. Defaults to the `cache` block's `ttl`. |
+| [`store_options`](#cache-calculation-store_options){: #cache-calculation-store_options } | `keyword` | `[]` | Options passed verbatim to the store adapter's put/4. Couples the resource to that adapter. |
+
+
+
+
+
+### Introspection
+
+Target: `AshCache.CachedCalculation`
 
 ### cache.refresh
 ```elixir

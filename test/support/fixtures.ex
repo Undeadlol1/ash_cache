@@ -100,12 +100,40 @@ defmodule AshCache.Test.CachedWidget do
     read(:read, ttl: to_timeout(hour: 1))
     read(:get_by_name, ttl: to_timeout(hour: 1))
     read(:paged, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Part])
   end
 
   widget_attributes()
 
   widget_actions do
     prepare(build(limit: 10))
+  end
+
+  relationships do
+    has_many(:parts, AshCache.Test.Part, destination_attribute: :widget_id)
+  end
+
+  calculations do
+    calculate(:doubled, :integer, expr(quantity * 2))
+  end
+
+  aggregates do
+    count(:part_count, :parts)
+  end
+end
+
+defmodule AshCache.Test.Part do
+  @moduledoc "Related records for CachedWidget's aggregate."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:widget_id, :uuid, allow_nil?: false, public?: true)
+  end
+
+  actions do
+    defaults([:read, create: :*])
   end
 end
 
@@ -515,6 +543,107 @@ defmodule AshCache.Test.SelfListedWidget do
   widget_actions()
 end
 
+defmodule AshCache.Test.ShippingQuote do
+  @moduledoc """
+  A slow, pure module calculation, faked: each real run sends
+  `{:calculated, names}` to the calling process so a test can count runs.
+  It reads the record's name and quantity, its parcels and their count, and
+  the `:rate` argument. A
+  shipment named `"nil"` quotes nil, `"none"` quotes [], and `"fail"` fails
+  the whole batch.
+  """
+
+  use Ash.Resource.Calculation
+
+  @impl true
+  def load(_query, _opts, _context), do: [:parcel_count, parcels: [:name]]
+
+  @impl true
+  def calculate(records, opts, context) do
+    send(self(), {:calculated, Enum.map(records, & &1.name)})
+
+    if Enum.any?(records, &(&1.name == "fail")) do
+      {:error, "quote service down"}
+    else
+      {:ok, Enum.map(records, &price(&1, context.arguments[:rate] || 1))}
+    end
+  end
+
+  defp price(%{name: "nil"}, _rate), do: nil
+  defp price(%{name: "none"}, _rate), do: []
+
+  defp price(shipment, rate) do
+    parcels = shipment.parcels |> Enum.map(& &1.name) |> Enum.sort() |> Enum.join("+")
+    "#{shipment.name}:#{shipment.quantity * rate}:#{shipment.parcel_count}:#{parcels}"
+  end
+end
+
+defmodule AshCache.Test.Shipment do
+  @moduledoc """
+  Calculation-caching case: `:quote` is cached per record and
+  `:uncached_quote` runs the same calculation without the cache.
+  `:cached_read` caches the records themselves too.
+  """
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  cache do
+    read(:cached_read, ttl: to_timeout(hour: 1))
+    calculation(:quote, ttl: to_timeout(hour: 1))
+    clear_when_changed([AshCache.Test.Parcel])
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:name, :string, allow_nil?: false, public?: true)
+    attribute(:quantity, :integer, allow_nil?: false, default: 1, public?: true)
+    attribute(:note, :string, public?: true)
+  end
+
+  relationships do
+    has_many(:parcels, AshCache.Test.Parcel)
+  end
+
+  aggregates do
+    count(:parcel_count, :parcels)
+  end
+
+  calculations do
+    calculate :quote, :term, AshCache.Test.ShippingQuote do
+      argument(:rate, :integer, default: 1)
+    end
+
+    calculate :uncached_quote, :term, AshCache.Test.ShippingQuote do
+      argument(:rate, :integer, default: 1)
+    end
+  end
+
+  actions do
+    defaults([:read, create: :*, update: :*])
+
+    read(:cached_read)
+  end
+end
+
+defmodule AshCache.Test.Parcel do
+  @moduledoc "A shipment's parcel, so a calculation can depend on related records."
+
+  use AshCache.Test.WidgetScaffold, extensions: [AshCache.Resource]
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:name, :string, allow_nil?: false, public?: true)
+  end
+
+  relationships do
+    belongs_to(:shipment, AshCache.Test.Shipment, attribute_writable?: true, public?: true)
+  end
+
+  actions do
+    defaults([:read, :destroy, create: :*, update: :*])
+  end
+end
+
 defmodule AshCache.Test.CachedComment do
   @moduledoc "A listed resource that also caches its own reads."
 
@@ -554,6 +683,7 @@ defmodule AshCache.Test.Domain do
       define(:get_cached_widget, action: :read, get_by: [:id])
     end
 
+    resource(AshCache.Test.Part)
     resource(AshCache.Test.PartiallyCachedWidget)
     resource(AshCache.Test.RefreshedWidget)
     resource(AshCache.Test.GuardedWidget)
@@ -574,6 +704,8 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.Post)
     resource(AshCache.Test.Feed)
     resource(AshCache.Test.SelfListedWidget)
+    resource(AshCache.Test.Shipment)
+    resource(AshCache.Test.Parcel)
     resource(AshCache.Test.CachedComment)
     resource(AshCache.Test.Article)
   end

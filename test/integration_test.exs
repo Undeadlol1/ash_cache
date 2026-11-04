@@ -131,6 +131,34 @@ defmodule AshCache.IntegrationTest do
     assert Events.drain() == [:hit, :hit]
   end
 
+  test "a read loading a calculation or aggregate does not collide with one that does not" do
+    widget = create!("loaded", 21)
+    Ash.create!(AshCache.Test.Part, %{widget_id: widget.id})
+
+    assert [%{doubled: %Ash.NotLoaded{}, part_count: %Ash.NotLoaded{}}] = Ash.read!(CachedWidget)
+    assert [%{doubled: 42}] = Ash.read!(Ash.Query.load(CachedWidget, :doubled))
+    assert [%{part_count: 1}] = Ash.read!(Ash.Query.load(CachedWidget, :part_count))
+    Events.drain()
+
+    assert [%{doubled: 42}] = Ash.read!(Ash.Query.load(CachedWidget, :doubled))
+    assert [%{part_count: 1}] = Ash.read!(Ash.Query.load(CachedWidget, :part_count))
+    assert Events.drain() == [:hit, :hit]
+  end
+
+  @tag timeout: 5_000
+  test "a cache hit serves loaded aggregates and relationships" do
+    widget = create!("loaded")
+    Ash.create!(AshCache.Test.Part, %{widget_id: widget.id})
+    query = Ash.Query.load(CachedWidget, [:part_count, :parts])
+    Events.drain()
+
+    for _read <- 1..3 do
+      assert [%{part_count: 1, parts: [_part]}] = Ash.read!(query)
+    end
+
+    assert Events.drain() == [:miss, :hit, :hit]
+  end
+
   test "pages of one query do not collide in the cache" do
     for name <- ["a", "b", "c", "d"], do: create!(name)
     Events.drain()

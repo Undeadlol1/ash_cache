@@ -57,6 +57,32 @@ As with reads, identical calls that miss at the same moment on one server
 share one `run` call (see "When many requests miss at once" above), and
 `clear_when_changed` clears these entries too.
 
+## On a calculation
+
+Ash has no step that can skip a calculation either, so for each `calculation`
+in the `cache` block, AshCache puts its own module in place of the
+calculation's own one when the resource compiles. It works on one record at a
+time: for a batch of records, each is looked up on its own, and the
+calculation runs once, only for the records that were not found.
+
+- If a record's key is found, the stored result is used.
+- If it is not found, the calculation runs and its result is saved.
+
+`nil` and `[]` are results and are saved. An error is returned and never
+saved.
+
+The key holds the calculation's arguments, the actor, the tenant, every
+attribute of the record, and the value of every field the calculation loads
+(the fields its `load/3` names). When any of these changes, the key is
+new, so a changed record is never answered with an old result. The old
+entries are not deleted; they expire after the `ttl`. Writes and
+`AshCache.invalidate/1` do not touch calculation entries, and there is no
+`clear_when_changed` for them.
+
+Only module calculations can be cached. An expression calculation already
+runs in the database and is saved inside the cached read that loads it, so
+listing one is a compile error.
+
 ## What is in a key
 
 A key is built from:
@@ -66,7 +92,8 @@ A key is built from:
    version value of each resource listed in `clear_when_changed`,
 3. the name of the action,
 4. for a read, everything about the query that affects its result:
-   arguments, filter, sort, limit, offset, page, distinct, select and load.
+   arguments, filter, sort, limit, offset, page, distinct, select, load,
+   calculations and aggregates.
    For a generic action, its arguments,
 5. the current actor and tenant.
 
@@ -151,7 +178,9 @@ Each cached read sends a `:telemetry` event: `[:ash_cache, :read, :hit]`
 when the result came from the cache, `[:ash_cache, :read, :miss]` when it
 went to the database. Each cached generic action sends
 `[:ash_cache, :action, :hit]` or `[:ash_cache, :action, :miss]` the same
-way. Each clear sends `[:ash_cache, :invalidate]`. Attach
+way. Each cached calculation sends `[:ash_cache, :calculation, :hit]` or
+`[:ash_cache, :calculation, :miss]` for every record. Each clear sends
+`[:ash_cache, :invalidate]`. Attach
 a handler to count hit rates in production. The events and their metadata
 are listed in `AshCache`; for tests, use `AshCache.Testing` (see
 [How to test with AshCache](testing.md)).
@@ -167,6 +196,8 @@ In order from smallest to largest:
    the query runs. It reads from the database and saves
    nothing. For a generic action, pass the same context to
    `Ash.ActionInput.for_action/4` or use `Ash.ActionInput.set_context/2`.
+   For a calculation, pass the context to the load:
+   `Ash.load!(record, :shipping_quote, context: %{ash_cache: :bypass})`.
 3. **Clear by hand.** `AshCache.invalidate(resource)` does what a write
    does. `AshCache.clear_store(store)` empties a whole store.
 4. **Use a different store.** See the [Storage](storage.md) guide.
@@ -188,3 +219,12 @@ In order from smallest to largest:
   write-heavy test suite, caching the resource roughly doubled the suite's
   runtime. Measure before caching a resource that is written to constantly.
 - **No clearing per record.** See "On a write" above.
+- **A cached calculation can serve an old answer.** If it reads anything
+  that is not on the record (an outside API, the clock, the query's
+  context), a change there is not in the key, so the old result is served
+  until the `ttl` runs out.
+- **Any attribute change recomputes a calculation.** Every attribute is in
+  the key, also the ones the calculation does not use.
+- **No sharing of simultaneous misses for calculations.** Reads and generic
+  actions share one run (see "When many requests miss at once"); calculations
+  don't, so identical misses at the same moment each run the calculation.

@@ -48,9 +48,23 @@ defmodule AshCache.Preparations.ReadThrough do
       lease = make_ref()
 
       query
+      |> Ash.Query.before_transaction(&remember_calculations/1)
       |> Ash.Query.before_action(&read_through(&1, opts, context, lease))
       |> Ash.Query.around_transaction(&release_on_exit(&1, &2, lease))
     end
+  end
+
+  # Ash empties `query.calculations` just before the before_action hooks
+  # run, so they are copied into the context while still there. Loads
+  # passed to `Ash.read/2` arrive after preparations, so prepare/3 is too
+  # early to read them.
+  defp remember_calculations(query) do
+    calculations =
+      Map.new(query.calculations, fn {name, calculation} ->
+        {name, {calculation.module, calculation.opts, calculation.context.arguments}}
+      end)
+
+    Ash.Query.set_context(query, %{ash_cache_calculations: calculations})
   end
 
   # Checked here, not in prepare/3, so `set_context` after `for_read` works.
@@ -109,6 +123,9 @@ defmodule AshCache.Preparations.ReadThrough do
     end
   end
 
+  # Ash loads the query's aggregates onto a set result by reading this
+  # action again, which hits this cache again, and so on forever. The
+  # cached records already hold them: their aggregates are part of the key.
   defp release_on_exit(query, callback, lease) do
     callback.(query)
   after
@@ -153,7 +170,10 @@ defmodule AshCache.Preparations.ReadThrough do
       page: query.page,
       distinct: query.distinct,
       select: query.select,
-      load: query.load
+      load: query.load,
+      # `Ash.Query.load/2` puts calculations and aggregates here, not in `load`.
+      calculations: Map.get(query.context, :ash_cache_calculations, %{}),
+      aggregates: query.aggregates
     }
 
     Key.build(query.resource, query.action.name, query_shape, version,
