@@ -55,7 +55,8 @@ where it caches two production resources.
   share a single database read instead of each running it. If that read
   fails, another waiting request runs it; after `rebuild_timeout` (5 seconds
   by default) the others stop waiting and read for themselves. Cached
-  generic actions do the same with their `run` call.
+  generic actions do the same with their `run` call. With `ProcessLocal`,
+  each process has its own cache, so it only shares reads with itself.
 - A read whose rows are computed from another resource (an aggregate, a
   calculation over one, or a filter, sort or policy that reaches another
   resource) is cached only when every resource it reaches is the resource

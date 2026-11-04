@@ -103,7 +103,7 @@ defmodule AshCache.MixProject do
   end
 
   defp description do
-    "Declarative read-through caching for Ash resources, with version-based invalidation."
+    "Caches Ash reads, generic actions and calculations, and clears the cache when the data changes through Ash."
   end
 
   defp package do
