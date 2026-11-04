@@ -96,7 +96,7 @@ Things to know:
   value is looked up in the store per read.
 
 The [Examples](examples.md#reads-that-include-another-resource) page has
-more cases: products with prices, orders with items, teams with members.
+more cases: a post with its comments, and a team with its members.
 
 ## Clear by hand
 
@@ -138,9 +138,10 @@ cache do
 end
 ```
 
-`arguments` says which attribute of the saved record fills each argument
-of the read. Each `refresh` makes the write one read slower. If the read
-fails, the failure is logged and the write still succeeds.
+`arguments: [sku: :sku]` says how to run that read: take the `sku` field
+of the product you just saved and pass it as the read's `sku` argument.
+Each `refresh` makes the write one read slower. If the read fails, the
+failure is logged and the write still succeeds.
 
 ## How it works
 
