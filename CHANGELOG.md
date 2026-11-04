@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 — 2026-11-04
+
+### Breaking changes
+
+- `refresh` is renamed to `recache_after_write`. Replace
+  `refresh :get_by_key, ...` with `recache_after_write :get_by_key, ...`.
+  The struct `AshCache.Refresh` is now `AshCache.RecacheAfterWrite`.
+
+### Changes
+
+- `recache_after_write` fills each read argument from the written record's
+  field of the same name, so `arguments` is only needed when the names
+  differ. `arguments: [key: :key]` still works.
+- A read argument that `recache_after_write` cannot fill (required, no
+  default, no field of the same name and no entry in `arguments`) now fails
+  compilation, instead of failing and being logged after every write.
+
 ## 0.1.0 — 2026-11-04
 
 First packaged release. Extracted from the application it was written in,

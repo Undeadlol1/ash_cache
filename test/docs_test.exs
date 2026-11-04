@@ -19,7 +19,7 @@ defmodule AshCache.DocsTest do
     AshCache.Info
     AshCache.Key
     AshCache.Preparations.ReadThrough
-    AshCache.Refresh
+    AshCache.RecacheAfterWrite
     AshCache.Resource
     AshCache.Resource.Transformers.AttachCacheHooks
     AshCache.Resource.Verifiers.ValidateCacheBlock

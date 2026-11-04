@@ -125,23 +125,33 @@ ran. The other servers serve old results until `ttl` runs out. Sharing one
 cache between servers is experimental; see
 [Running on several servers](storage.md#running-on-several-servers-experimental).
 
-## Fill the cache right after a write
+## Cache a read again after a write
 
 After a write, the next read goes to the database. If that first read must
-be fast, `refresh` runs it as part of the write, so the new result is
-cached before anyone asks:
+be fast, `recache_after_write` caches the read again as part of the write:
 
 ```elixir
 cache do
   read :get_by_sku
-  refresh :get_by_sku, arguments: [sku: :sku]
+  recache_after_write :get_by_sku
 end
 ```
 
-`arguments: [sku: :sku]` says how to run that read: take the `sku` field
-of the product you just saved and pass it as the read's `sku` argument.
-Each `refresh` makes the write one read slower. If the read fails, the
-failure is logged and the write still succeeds.
+Here a write means a create or an update; a delete caches nothing again.
+
+Each argument of the read comes from the field of the written record with
+the same name: the read's `sku` argument gets the product's `sku`. If the
+names differ, say which field to use:
+
+```elixir
+recache_after_write :get_by_code, arguments: [code: :sku]
+```
+
+If an argument the read needs has no field to come from, your app doesn't
+compile.
+
+Each `recache_after_write` makes the write one read slower. If the read
+fails, the failure is logged and the write still succeeds.
 
 ## How it works
 

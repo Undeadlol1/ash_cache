@@ -360,7 +360,7 @@ defmodule AshCache.IntegrationTest do
     assert Events.drain() == [:miss, :hit]
   end
 
-  test "a refresh mapping a read argument to a differently named attribute caches the right record" do
+  test "a recache mapping a read argument to a differently named attribute caches the right record" do
     LabelledWidget
     |> Ash.Changeset.for_create(:create, %{name: "tagged", quantity: 5})
     |> Ash.create!()

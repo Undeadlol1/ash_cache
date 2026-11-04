@@ -42,7 +42,7 @@ Add the package to `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ash_cache, "~> 0.1"},
+    {:ash_cache, "~> 0.2"},
     {:cachex, "~> 3.6"}
   ]
 end

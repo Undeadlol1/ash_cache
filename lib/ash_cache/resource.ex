@@ -58,20 +58,22 @@ defmodule AshCache.Resource do
     args: [:name],
     schema: AshCache.CachedCalculation.schema()
   }
-  @refresh %Spark.Dsl.Entity{
-    name: :refresh,
+  @recache %Spark.Dsl.Entity{
+    name: :recache_after_write,
     describe: """
-    Re-run a read after every successful create/update so the fresh value is
-    cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: :key]`.
+    After a write (a create or an update), cache this read again, so the next
+    request finds the new result. Each argument of the read is taken from the
+    written record's field with the same name; `arguments` maps the ones whose
+    names differ.
     """,
-    target: AshCache.Refresh,
+    target: AshCache.RecacheAfterWrite,
     args: [:read],
-    schema: AshCache.Refresh.schema()
+    schema: AshCache.RecacheAfterWrite.schema()
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
     describe: "Which reads, generic actions and calculations to cache, where, and for how long.",
-    entities: [@read, @action, @calculation, @refresh],
+    entities: [@read, @action, @calculation, @recache],
     schema: [
       store: [
         type: :atom,
