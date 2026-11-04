@@ -9,7 +9,7 @@ defmodule AshCache do
 
   ## Telemetry
 
-  Five `:telemetry` events let you assert cache behaviour in tests and
+  Seven `:telemetry` events let you assert cache behaviour in tests and
   measure hit rates in production. All have empty measurements. Calls that
   are bypassed, or not cached, emit nothing. Actor and tenant are never in
   the metadata.
@@ -25,6 +25,10 @@ defmodule AshCache do
     * `[:ash_cache, :action, :hit]` and `[:ash_cache, :action, :miss]` -
       the same for a cached generic action, with the same metadata. A miss
       means the action's `run` was called.
+    * `[:ash_cache, :calculation, :hit]` and `[:ash_cache, :calculation, :miss]` -
+      the same for one record of a cached calculation (see
+      `AshCache.Calculations.CalculateThrough`), with `:calculation` in place
+      of `:action`. A miss means the calculation ran for that record.
     * `[:ash_cache, :invalidate]` - a resource's cache was invalidated, by
       a successful create, update or destroy or by `invalidate/1`.
       Metadata: `:resource`, `:store`.

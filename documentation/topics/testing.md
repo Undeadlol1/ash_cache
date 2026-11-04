@@ -62,6 +62,29 @@ The first read goes to the database (a miss) and caches the result. The
 second is answered from the cache (a hit). Other tests running at the same
 time cannot send you events.
 
+## Check that a calculation is cached
+
+A cached calculation sends `:hit` and `:miss` too, one for each record, with
+`calculation:` in the metadata in place of `action:`. This uses a
+`:shipping_quote` calculation cached with
+`calculation :shipping_quote, ttl: :timer.hours(1)`:
+
+```elixir
+test "a shipping quote is cached" do
+  shipment = MyApp.Shipping.create_shipment!(%{weight_grams: 500, destination: "NL"})
+
+  Ash.load!(shipment, :shipping_quote)
+  assert_received {:ash_cache, :miss, %{calculation: :shipping_quote}}
+
+  Ash.load!(shipment, :shipping_quote)
+  assert_received {:ash_cache, :hit, %{calculation: :shipping_quote}}
+end
+```
+
+A write does not clear a calculation, but it changes the key. So after
+changing the shipment, the next load is a `:miss`, and no `:invalidate` is
+involved.
+
 ## Check that a write clears the cache
 
 ```elixir

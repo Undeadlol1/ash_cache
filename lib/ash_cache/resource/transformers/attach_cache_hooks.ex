@@ -6,6 +6,9 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
       preparation, appended after any preparations the action declares
     * each cached generic action has its `run` replaced by
       `AshCache.Actions.RunThrough`, which calls the original on a miss
+    * each cached calculation has its implementation replaced by
+      `AshCache.Calculations.CalculateThrough`, which calls the original for
+      the records not in the cache
     * every create/update/destroy gets the `AshCache.Changes.InvalidateCache`
       change, so invalidation is a property of the resource — an action added
       later cannot forget it
@@ -35,6 +38,8 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
     cached_actions =
       for %AshCache.CachedAction{} = cached <- entities, into: %{}, do: {cached.name, cached}
+
+    dsl_state = wrap_calculations(dsl_state, entities, block_ttl, store)
 
     dsl_state
     |> Transformer.get_entities([:actions])
@@ -75,6 +80,37 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
       end
     end)
     |> then(&{:ok, &1})
+  end
+
+  defp wrap_calculations(dsl_state, entities, block_ttl, store) do
+    cached =
+      for %AshCache.CachedCalculation{} = calc <- entities, into: %{}, do: {calc.name, calc}
+
+    resource = Transformer.get_persisted(dsl_state, :module)
+
+    dsl_state
+    |> Transformer.get_entities([:calculations])
+    |> Enum.filter(&is_map_key(cached, &1.name))
+    |> Enum.reduce(dsl_state, fn calculation, dsl_state ->
+      settings = cached[calculation.name]
+
+      opts = [
+        calculation: calculation.calculation,
+        name: calculation.name,
+        resource: resource,
+        load: calculation.load,
+        store: store,
+        ttl: AshCache.CachedRead.ttl(settings, block_ttl),
+        store_options: settings.store_options
+      ]
+
+      Transformer.replace_entity(
+        dsl_state,
+        [:calculations],
+        %{calculation | calculation: {AshCache.Calculations.CalculateThrough, opts}},
+        &(&1.name == calculation.name)
+      )
+    end)
   end
 
   defp attach_preparation(dsl_state, action, preparation_opts) do

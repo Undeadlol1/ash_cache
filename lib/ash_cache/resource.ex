@@ -10,6 +10,7 @@ defmodule AshCache.Resource do
         cache do
           read :get_by_sku, ttl: :timer.hours(1)
           action :exchange_rate, ttl: :timer.minutes(10)
+          calculation :shipping_quote, ttl: :timer.hours(1)
         end
       end
 
@@ -26,7 +27,14 @@ defmodule AshCache.Resource do
   not called (see `AshCache.Actions.RunThrough`). Writes clear these entries
   too.
 
-  Actions without a `read` or `action` entry are never cached.
+  Each `calculation` caches a module calculation's result per record, keyed
+  by its arguments, the actor, the tenant and every value it can read from
+  the record (see `AshCache.Calculations.CalculateThrough`). It lives as
+  long as its own `ttl`, else the block's. Writes do not clear these
+  entries: a changed record gives a new key. Expression calculations are
+  rejected; they already run in the database and cached reads hold them.
+
+  Actions and calculations without an entry are never cached.
   """
 
   @read %Spark.Dsl.Entity{
@@ -43,6 +51,13 @@ defmodule AshCache.Resource do
     args: [:name],
     schema: AshCache.CachedAction.schema()
   }
+  @calculation %Spark.Dsl.Entity{
+    name: :calculation,
+    describe: "Cache this module calculation's result per record, with its own lifetime.",
+    target: AshCache.CachedCalculation,
+    args: [:name],
+    schema: AshCache.CachedCalculation.schema()
+  }
   @refresh %Spark.Dsl.Entity{
     name: :refresh,
     describe: """
@@ -55,8 +70,8 @@ defmodule AshCache.Resource do
   }
   @cache %Spark.Dsl.Section{
     name: :cache,
-    describe: "Which reads and generic actions to cache, where, and for how long.",
-    entities: [@read, @action, @refresh],
+    describe: "Which reads, generic actions and calculations to cache, where, and for how long.",
+    entities: [@read, @action, @calculation, @refresh],
     schema: [
       store: [
         type: :atom,
@@ -68,8 +83,8 @@ defmodule AshCache.Resource do
         type: {:or, [:pos_integer, {:in, [:infinity]}]},
         default: :timer.minutes(5),
         doc: """
-        Milliseconds a cached entry lives before it expires, for every `read`
-        and `action` that does not set its own `ttl`. `:infinity` never expires; it is never
+        Milliseconds a cached entry lives before it expires, for every `read`,
+        `action` and `calculation` that does not set its own `ttl`. `:infinity` never expires; it is never
         the default.
         """
       ],
