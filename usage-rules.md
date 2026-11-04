@@ -6,7 +6,7 @@ when a requirement demands them.
 
 ## Setup
 
-- Add `{:ash_cache, "~> 0.1"}` and `{:cachex, "~> 3.6"}` to deps. Cachex is
+- Add `{:ash_cache, "~> 0.2"}` and `{:cachex, "~> 3.6"}` to deps. Cachex is
   the default store and is optional: skip it only if you set another adapter.
 - Add `{AshCache.Supervisor, otp_app: :my_app}` to the application's
   supervision tree exactly once, after the repo. It starts one Cachex store
@@ -57,12 +57,14 @@ when a requirement demands them.
   (default `:ash_cache`); `ttl` sets the lifetime for reads without their own.
   With the Nebulex adapter the store is the Nebulex cache module:
   `store MyApp.Cache`.
-- `refresh :read_action, arguments: [arg: :attribute], actor: {Mod, :fun, []}`
-  re-runs a cached read after each create/update with arguments taken from
-  the written record. The entry is cached for that actor only (no actor by
-  default) and for the written record's tenant, so `refresh` only helps reads
-  normally called the same way. Do not use it for per-user reads. Each
-  `refresh` costs the writer one extra read.
+- `recache_after_write :read_action` caches a cached read again after each
+  create/update (not destroy). Each read argument is taken from the written
+  record's attribute of the same name; `arguments: [arg: :attribute]` maps
+  only the ones whose names differ. A required argument with no source fails
+  compilation. `actor: {Mod, :fun, []}` sets the actor; the entry is cached
+  for that actor only (no actor by default) and for the written record's
+  tenant, so it only helps reads normally called the same way. Do not use it
+  for per-user reads. Each one costs the writer one extra read.
 - Every successful create/update/destroy clears all cached reads and
   generic actions of the resource, after commit.
 - `clear_when_changed [MyApp.Blog.Comment]` on the block also clears the

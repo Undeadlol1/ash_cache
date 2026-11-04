@@ -12,20 +12,20 @@ defmodule AshCache.Changes.InvalidateCache do
   use Ash.Resource.Change
 
   alias AshCache.CacheVersion
-  alias AshCache.Refresh
+  alias AshCache.RecacheAfterWrite
 
   require Logger
 
   @impl true
   def change(changeset, opts, _context) do
     store = Keyword.fetch!(opts, :store)
-    refreshes = Keyword.get(opts, :refresh, [])
+    recaches = Keyword.get(opts, :recache_after_write, [])
 
     Ash.Changeset.after_transaction(changeset, fn changeset, result ->
       case result do
         {:ok, record} ->
           bump(store, changeset.resource)
-          refresh_reads(changeset, record, refreshes)
+          recache_reads(changeset, record, recaches)
 
         _error ->
           :noop
@@ -43,34 +43,35 @@ defmodule AshCache.Changes.InvalidateCache do
     end
   end
 
-  defp refresh_reads(%{action: %{type: :destroy}}, _record, _refreshes), do: :ok
+  defp recache_reads(%{action: %{type: :destroy}}, _record, _recaches), do: :ok
 
-  defp refresh_reads(changeset, record, refreshes) do
-    Enum.each(refreshes, fn refresh ->
-      case run_refresh(changeset.resource, changeset.tenant, record, refresh) do
-        {:error, reason} -> log_refresh_failure(changeset.resource, refresh, reason)
-        _refreshed -> :ok
+  defp recache_reads(changeset, record, recaches) do
+    Enum.each(recaches, fn recache ->
+      case run_recache(changeset.resource, changeset.tenant, record, recache) do
+        {:error, reason} -> log_recache_failure(changeset.resource, recache, reason)
+        _recached -> :ok
       end
     end)
   end
 
   # The write has already committed, so this is nobody's failure to handle —
-  # but a refresh that keeps failing should be visible as more than latency.
-  defp log_refresh_failure(resource, %Refresh{read: read}, reason) do
-    Logger.warning("AshCache could not refresh #{inspect(resource)}.#{read}: #{inspect(reason)}")
+  # but a recache that keeps failing should be visible as more than latency.
+  defp log_recache_failure(resource, %RecacheAfterWrite{read: read}, reason) do
+    Logger.warning("AshCache could not recache #{inspect(resource)}.#{read}: #{inspect(reason)}")
   end
 
-  defp run_refresh(resource, tenant, record, %Refresh{
+  defp run_recache(resource, tenant, record, %RecacheAfterWrite{
          read: read,
          arguments: argument_attributes,
          actor: actor_mfa
        }) do
-    actor = refresh_actor(actor_mfa)
+    actor = recache_actor(actor_mfa)
 
     arguments =
-      Map.new(argument_attributes, fn {argument, attribute} ->
-        {argument, Map.get(record, attribute)}
-      end)
+      for {argument, attribute} <-
+            RecacheAfterWrite.argument_sources(resource, read, argument_attributes),
+          into: %{},
+          do: {argument, Map.get(record, attribute)}
 
     resource
     |> Ash.Query.for_read(read, arguments, actor: actor, tenant: tenant)
@@ -81,8 +82,8 @@ defmodule AshCache.Changes.InvalidateCache do
     kind, reason -> {:error, {kind, reason}}
   end
 
-  defp refresh_actor(nil), do: nil
-  defp refresh_actor({module, function, args}), do: apply(module, function, args)
+  defp recache_actor(nil), do: nil
+  defp recache_actor({module, function, args}), do: apply(module, function, args)
 
   # The change only registers an after_transaction hook, so it is safe under
   # atomic updates (Ash 3 defaults update actions to require_atomic? true).

@@ -31,7 +31,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
     block_ttl = AshCache.Info.cache_ttl!(dsl_state)
     clear_when_changed = AshCache.Info.cache_clear_when_changed!(dsl_state)
     entities = Transformer.get_entities(dsl_state, [:cache])
-    refreshes = Enum.filter(entities, &match?(%AshCache.Refresh{}, &1))
+    recaches = Enum.filter(entities, &match?(%AshCache.RecacheAfterWrite{}, &1))
 
     cached_reads =
       for %AshCache.CachedRead{} = read <- entities, into: %{}, do: {read.name, read}
@@ -73,7 +73,7 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
           replace_action(dsl_state, %{action | run: {AshCache.Actions.RunThrough, run_opts}})
 
         action.type in @write_types ->
-          attach_change(dsl_state, action, store, refreshes)
+          attach_change(dsl_state, action, store, recaches)
 
         true ->
           dsl_state
@@ -133,11 +133,11 @@ defmodule AshCache.Resource.Transformers.AttachCacheHooks do
 
   defp suppress_primary_read_warning(dsl_state, _action), do: dsl_state
 
-  defp attach_change(dsl_state, action, store, refreshes) do
+  defp attach_change(dsl_state, action, store, recaches) do
     change_opts =
-      case refreshes do
+      case recaches do
         [] -> [store: store]
-        refreshes -> [store: store, refresh: refreshes]
+        recaches -> [store: store, recache_after_write: recaches]
       end
 
     change =

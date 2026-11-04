@@ -48,39 +48,39 @@ defmodule AshCache.Changes.InvalidateCacheTest do
     assert CacheVersion.current(store, Widget) == before
   end
 
-  describe "refreshing after a write, through real actions" do
+  describe "recaching after a write, through real actions" do
     alias AshCache.Test.Events
-    alias AshCache.Test.RefreshedWidget
+    alias AshCache.Test.RecachedWidget
 
     setup do
       AshCache.Testing.capture_events()
     end
 
     defp wipe_data_layer! do
-      {:ok, _table} = Ash.DataLayer.Ets.stop(RefreshedWidget)
-      Process.delete({:ash_ets_table, RefreshedWidget, nil})
+      {:ok, _table} = Ash.DataLayer.Ets.stop(RecachedWidget)
+      Process.delete({:ash_ets_table, RecachedWidget, nil})
     end
 
     defp get_by_name!(name) do
-      RefreshedWidget
+      RecachedWidget
       |> Ash.Query.for_read(:get_by_name, %{name: name})
       |> Ash.read!()
     end
 
-    test "a create refreshes the declared read before anyone asks" do
-      RefreshedWidget
-      |> Ash.Changeset.for_create(:create, %{name: "refreshed", quantity: 7})
+    test "a create recaches the declared read before anyone asks" do
+      RecachedWidget
+      |> Ash.Changeset.for_create(:create, %{name: "recached", quantity: 7})
       |> Ash.create!()
 
       wipe_data_layer!()
 
-      assert [%{quantity: 7}] = get_by_name!("refreshed")
+      assert [%{quantity: 7}] = get_by_name!("recached")
     end
 
-    test "an update refreshes the read with the fresh value" do
+    test "an update recaches the read with the fresh value" do
       widget =
-        RefreshedWidget
-        |> Ash.Changeset.for_create(:create, %{name: "refreshed", quantity: 1})
+        RecachedWidget
+        |> Ash.Changeset.for_create(:create, %{name: "recached", quantity: 1})
         |> Ash.create!()
 
       widget
@@ -89,7 +89,7 @@ defmodule AshCache.Changes.InvalidateCacheTest do
 
       wipe_data_layer!()
 
-      assert [%{quantity: 2}] = get_by_name!("refreshed")
+      assert [%{quantity: 2}] = get_by_name!("recached")
     end
 
     defmodule ExplodingActor do
@@ -97,21 +97,21 @@ defmodule AshCache.Changes.InvalidateCacheTest do
       def resolve, do: raise("actor resolution blew up")
     end
 
-    defp write_result_after_refreshing(refresh) do
+    defp write_result_after_recaching(recache) do
       record = %{name: "resilient", quantity: 3}
 
       changeset =
         Widget
         |> Ash.Changeset.for_create(:create, record)
-        |> InvalidateCache.change([store: :ash_cache, refresh: [refresh]], %{})
+        |> InvalidateCache.change([store: :ash_cache, recache_after_write: [recache]], %{})
 
       [hook] = changeset.after_transaction
 
       hook.(changeset, {:ok, record})
     end
 
-    test "a refresh that raises does not fail the already-committed write" do
-      exploding_refresh = %AshCache.Refresh{
+    test "a recache that raises does not fail the already-committed write" do
+      exploding_recache = %AshCache.RecacheAfterWrite{
         read: :get_by_name,
         arguments: [name: :name],
         actor: {ExplodingActor, :resolve, []}
@@ -119,14 +119,14 @@ defmodule AshCache.Changes.InvalidateCacheTest do
 
       log =
         capture_log(fn ->
-          assert {:ok, %{quantity: 3}} = write_result_after_refreshing(exploding_refresh)
+          assert {:ok, %{quantity: 3}} = write_result_after_recaching(exploding_recache)
         end)
 
-      assert log =~ "AshCache could not refresh"
+      assert log =~ "AshCache could not recache"
     end
 
-    test "a refresh whose read is rejected does not fail the committed write" do
-      unknown_read_refresh = %AshCache.Refresh{
+    test "a recache whose read is rejected does not fail the committed write" do
+      unknown_read_recache = %AshCache.RecacheAfterWrite{
         read: :no_such_read,
         arguments: [name: :name],
         actor: nil
@@ -134,15 +134,15 @@ defmodule AshCache.Changes.InvalidateCacheTest do
 
       log =
         capture_log(fn ->
-          assert {:ok, %{quantity: 3}} = write_result_after_refreshing(unknown_read_refresh)
+          assert {:ok, %{quantity: 3}} = write_result_after_recaching(unknown_read_recache)
         end)
 
-      assert log =~ "AshCache could not refresh"
+      assert log =~ "AshCache could not recache"
     end
 
-    test "a destroy does not refresh a read for the dead record" do
+    test "a destroy does not recache a read for the dead record" do
       widget =
-        RefreshedWidget
+        RecachedWidget
         |> Ash.Changeset.for_create(:create, %{name: "doomed"})
         |> Ash.create!()
 

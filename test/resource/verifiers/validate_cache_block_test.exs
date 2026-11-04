@@ -10,7 +10,7 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlockTest do
   # the module checker, so `assert_raise` around a `defmodule` never sees the
   # error.
 
-  alias AshCache.Test.RefreshedWidget
+  alias AshCache.Test.RecachedWidget
   alias Spark.Dsl.Transformer
 
   defp cached_read(name), do: %AshCache.CachedRead{name: name, ttl: 1000}
@@ -28,18 +28,32 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlockTest do
     assert ValidateCacheBlock.verify(PartiallyCachedWidget.spark_dsl_config()) == :ok
   end
 
-  test "accepts a refresh naming a cached read" do
-    assert ValidateCacheBlock.verify(RefreshedWidget.spark_dsl_config()) == :ok
+  test "accepts a recache naming a cached read" do
+    assert ValidateCacheBlock.verify(RecachedWidget.spark_dsl_config()) == :ok
   end
 
-  test "rejects a refresh naming an uncached read" do
+  test "rejects a recache naming an uncached read" do
     dsl_state =
-      RefreshedWidget.spark_dsl_config()
+      RecachedWidget.spark_dsl_config()
       |> without_cached_reads()
       |> Transformer.add_entity([:cache], cached_read(:read))
 
     assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
-    assert Exception.message(error) =~ "refresh :get_by_name"
+    assert Exception.message(error) =~ "recache_after_write :get_by_name"
+  end
+
+  test "accepts recache_after_write when each read argument has a field of the same name" do
+    assert ValidateCacheBlock.verify(RecachedWidget.spark_dsl_config()) == :ok
+  end
+
+  test "rejects recache_after_write when a required read argument has no field of the same name and no mapping" do
+    dsl_state =
+      AshCache.Test.LabelledWidget.spark_dsl_config()
+      |> Transformer.remove_entity([:cache], &match?(%AshCache.RecacheAfterWrite{}, &1))
+      |> Transformer.add_entity([:cache], %AshCache.RecacheAfterWrite{read: :get_by_label})
+
+    assert {:error, error} = ValidateCacheBlock.verify(dsl_state)
+    assert Exception.message(error) =~ "label"
   end
 
   test "accepts a resource that caches nothing, so others can list it in clear_when_changed" do

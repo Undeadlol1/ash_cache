@@ -2,7 +2,7 @@ defmodule AshCache.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/Undeadlol1/ash_cache"
-  @version "0.1.0"
+  @version "0.2.0"
 
   def project do
     [
@@ -78,7 +78,7 @@ defmodule AshCache.MixProject do
       ],
       groups_for_modules: [
         "Public API": [AshCache, AshCache.Resource, AshCache.Supervisor, AshCache.Testing],
-        Configuration: [AshCache.Info, AshCache.Refresh],
+        Configuration: [AshCache.Info, AshCache.RecacheAfterWrite],
         "How it works": [
           AshCache.Key,
           AshCache.CacheVersion,

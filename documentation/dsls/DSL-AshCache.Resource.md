@@ -47,7 +47,7 @@ Which reads, generic actions and calculations to cache, where, and for how long.
  * [read](#cache-read)
  * [action](#cache-action)
  * [calculation](#cache-calculation)
- * [refresh](#cache-refresh)
+ * [recache_after_write](#cache-recache_after_write)
 
 
 
@@ -161,14 +161,16 @@ Cache this module calculation's result per record, with its own lifetime.
 
 Target: `AshCache.CachedCalculation`
 
-### cache.refresh
+### cache.recache_after_write
 ```elixir
-refresh read
+recache_after_write read
 ```
 
 
-Re-run a read after every successful create/update so the fresh value is
-cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: :key]`.
+After a write (a create or an update), cache this read again, so the next
+request finds the new result. Each argument of the read is taken from the
+written record's field with the same name; `arguments` maps the ones whose
+names differ.
 
 
 
@@ -179,13 +181,13 @@ cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: 
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`read`](#cache-refresh-read){: #cache-refresh-read .spark-required} | `atom` |  | The cached read action to refresh. |
+| [`read`](#cache-recache_after_write-read){: #cache-recache_after_write-read .spark-required} | `atom` |  | The cached read action to recache. |
 ### Options
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`arguments`](#cache-refresh-arguments){: #cache-refresh-arguments } | `keyword` | `[]` | Read arguments as `argument_name: record_attribute` pairs. |
-| [`actor`](#cache-refresh-actor){: #cache-refresh-actor } | `nil \| mfa` |  | MFA returning the actor to refresh as. Refreshed entries are cached under this actor's key, so it must match how the read is normally called. |
+| [`arguments`](#cache-recache_after_write-arguments){: #cache-recache_after_write-arguments } | `keyword` | `[]` | Read arguments whose field on the written record has a different name, as `argument: field` pairs. An argument with a field of the same name needs no entry. |
+| [`actor`](#cache-recache_after_write-actor){: #cache-recache_after_write-actor } | `nil \| mfa` |  | MFA returning the actor to recache as. Recached entries are cached under this actor's key, so it must match how the read is normally called. |
 
 
 
@@ -193,7 +195,7 @@ cached immediately (write-through), e.g. `refresh :get_by_key, arguments: [key: 
 
 ### Introspection
 
-Target: `AshCache.Refresh`
+Target: `AshCache.RecacheAfterWrite`
 
 
 

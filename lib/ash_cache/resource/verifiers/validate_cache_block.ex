@@ -1,7 +1,7 @@
 defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
   @moduledoc """
   Rejects a `cache` block that names an action of the wrong type, declares
-  the same action twice, refreshes a read it does not cache, or lists in
+  the same action twice, recaches a read it does not cache, or lists in
   `clear_when_changed` a module that is not a resource using AshCache.
   A typo in any of these would silently cache or clear nothing.
 
@@ -27,7 +27,8 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
     entities = Verifier.get_entities(dsl_state, [:cache])
     reads = for %AshCache.CachedRead{name: name} <- entities, do: name
     actions = for %AshCache.CachedAction{name: name} <- entities, do: name
-    refreshes = for %AshCache.Refresh{read: read} <- entities, do: read
+    recache_entries = for %AshCache.RecacheAfterWrite{} = entry <- entities, do: entry
+    recaches = Enum.map(recache_entries, & &1.read)
     calculations = for %AshCache.CachedCalculation{name: name} <- entities, do: name
 
     with :ok <- verify_action_type(dsl_state, :read, reads, "read actions"),
@@ -37,7 +38,8 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
          :ok <- verify_unique(dsl_state, :calculation, calculations),
          :ok <- verify_calculations(dsl_state, calculations),
          :ok <- verify_generic_actions(dsl_state, actions),
-         :ok <- verify_refreshes(dsl_state, reads, refreshes) do
+         :ok <- verify_recaches(dsl_state, reads, recaches),
+         :ok <- verify_recache_arguments(dsl_state, recache_entries) do
       verify_clear_when_changed(dsl_state)
     end
   end
@@ -148,17 +150,48 @@ defmodule AshCache.Resource.Verifiers.ValidateCacheBlock do
     UndefinedFunctionError -> false
   end
 
-  defp verify_refreshes(dsl_state, reads, refreshes) do
-    case Enum.reject(refreshes, &(&1 in reads)) do
+  defp verify_recaches(dsl_state, reads, recaches) do
+    case Enum.reject(recaches, &(&1 in reads)) do
       [] ->
         :ok
 
       [uncached | _rest] ->
-        dsl_error(dsl_state, [:cache, :refresh], """
-        `refresh #{inspect(uncached)}` names an action that is not a cached read on this resource.
+        dsl_error(dsl_state, [:cache, :recache_after_write], """
+        `recache_after_write #{inspect(uncached)}` names an action that is not a cached read on this resource.
         Cached read actions: #{inspect(Enum.sort(reads))}.
         """)
     end
+  end
+
+  # A required argument with no field to fill it would make every recache
+  # fail at runtime, where it is only logged.
+  defp verify_recache_arguments(dsl_state, entries) do
+    Enum.reduce_while(entries, :ok, fn %{read: read, arguments: arguments}, :ok ->
+      filled =
+        dsl_state
+        |> AshCache.RecacheAfterWrite.argument_sources(read, arguments)
+        |> Keyword.keys()
+
+      unfilled =
+        for argument <- Ash.Resource.Info.action(dsl_state, read).arguments,
+            not argument.allow_nil?,
+            is_nil(argument.default),
+            argument.name not in filled,
+            do: argument.name
+
+      case unfilled do
+        [] ->
+          {:cont, :ok}
+
+        [argument | _rest] ->
+          {:halt,
+           dsl_error(dsl_state, [:cache, :recache_after_write], """
+           `recache_after_write #{inspect(read)}` cannot fill the read's argument #{inspect(argument)}: \
+           the written record has no field named #{inspect(argument)}.
+           Name the field to use: `recache_after_write #{inspect(read)}, arguments: [#{argument}: :field]`.
+           """)}
+      end
+    end)
   end
 
   # Without the extension a resource's writes change no version, so listing it

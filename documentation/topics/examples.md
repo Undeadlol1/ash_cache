@@ -96,19 +96,20 @@ same for every user.
 ```elixir
 cache do
   read :get_by_key, ttl: :timer.hours(1)
-  refresh :get_by_key, arguments: [key: :key]
+  recache_after_write :get_by_key
 end
 ```
 
 Changing a setting clears the cache, so normally the next request has to
-read it from the database. `refresh` does that read for you, right after
-the change is saved. The next request finds the new value already cached.
+read it from the database. `recache_after_write` caches the read again right
+after the write, so the next request finds the new value already cached.
 
-`arguments: [key: :key]` says how to run that read: take the `key` field of
-the setting you just saved and pass it as the read's `key` argument.
+The read's `key` argument comes from the `key` field of the setting you just
+wrote, because the names match.
 
-`refresh` reads with no user signed in, so it only helps if your app also
-reads settings that way. If it reads them as a user, leave `refresh` out.
+`recache_after_write` reads with no user signed in, so it only helps if your
+app also reads settings that way. If it reads them as a user, leave
+`recache_after_write` out.
 
 If you run several servers, the others keep the old value for up to `ttl`.
 For a flag that must switch off right away, such as a kill switch, use a
@@ -129,8 +130,8 @@ one user's settings can never be served to another. Pass the user as the
 actor when you read, for example through a code interface or
 `Ash.Query.for_read(query, :for_current_user, %{}, actor: user)`.
 
-There is no `refresh` here: it reads with no user signed in, so it would
-fill an entry that no user's request looks up.
+There is no `recache_after_write` here: it reads with no user signed in, so
+it would cache an entry that no user's request looks up.
 
 Any user saving their settings clears the cached settings of all users,
 because clearing works per resource. If many users change settings all the

@@ -153,23 +153,24 @@ cache key. AshCache changes the key without writing to the post.
 What this means for your app is in
 [When the cache clears](clearing.md#related-resources).
 
-## Filling the cache right after a write
+## Caching a read again after a write
 
-Normally the first read after a write goes to the database. A `refresh`
-declaration moves that cost to the writer:
+Normally the first read after a write goes to the database.
+`recache_after_write` moves that cost to the writer:
 
 ```elixir
 cache do
   read :get_by_sku, ttl: :timer.hours(1)
-  refresh :get_by_sku, arguments: [sku: :sku]
+  recache_after_write :get_by_sku
 end
 ```
 
-After each successful create or update, AshCache runs the named read with
-arguments taken from the saved record, so the new value is cached before
+After each successful create or update, AshCache caches the named read
+again, with each argument taken from the written record's field of the same
+name (or the field `arguments` names), so the new value is cached before
 anyone asks for it. The read is a real read action, with the same key and
 the same authorization as any other. It runs inside the write, so each
-`refresh` makes the write one read slower. If the read fails, the failure is
+`recache_after_write` makes the write one read slower. If the read fails, the failure is
 logged and ignored; the version bump has already removed the stale entry.
 
 ## Seeing what the cache does
