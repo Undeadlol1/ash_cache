@@ -2,7 +2,7 @@ defmodule AshCache.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/Undeadlol1/ash_cache"
-  @version "0.2.0"
+  @version "0.2.1"
 
   def project do
     [

@@ -74,11 +74,24 @@ defmodule AshCache.Changes.InvalidateCacheTest do
       refute CacheVersion.current(store, Widget) == before
     end
 
-    test "a failed write hands the app nothing to hold", %{opts: opts} do
+    test "a failed write hands the app nothing to hold", %{store: store, opts: opts} do
       changeset = changeset_with_bump(opts)
+      before = CacheVersion.current(store, Widget)
 
-      complete_transaction(changeset, {:error, :boom})
+      write_result = {:error, :boom}
+      assert complete_transaction(changeset, write_result) == write_result
       refute_received {:held_until_commit, _work}
+      assert CacheVersion.current(store, Widget) == before
+    end
+
+    test "an outer rollback that drops the held work leaves the cache version as it was",
+         %{store: store, opts: opts} do
+      changeset = changeset_with_bump(opts)
+      before = CacheVersion.current(store, Widget)
+
+      complete_transaction(changeset, {:ok, %{name: "a"}})
+      assert_received {:held_until_commit, _dropped_on_rollback}
+      assert CacheVersion.current(store, Widget) == before
     end
   end
 

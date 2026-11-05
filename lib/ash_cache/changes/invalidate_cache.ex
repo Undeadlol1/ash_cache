@@ -11,7 +11,7 @@ defmodule AshCache.Changes.InvalidateCache do
   Ash's `after_transaction` runs when Ash's own transaction ends. An app that
   wraps the write in an outer transaction can hold the bump until that outer
   transaction commits with `config :ash_cache, after_commit: {Module, :fun}`:
-  `Module.fun/1` receives a zero-arity function and must call it once the
+  `fun` receives a zero-arity function and must call it once the
   outer transaction has committed, or drop it if it rolls back.
   """
 
