@@ -7,6 +7,12 @@ defmodule AshCache.Changes.InvalidateCache do
   rolls back must leave the cache untouched, and reads running concurrently
   with the transaction keep caching under the old cache version — harmless,
   because the bump after commit makes those entries unreachable.
+
+  Ash's `after_transaction` runs when Ash's own transaction ends. An app that
+  wraps the write in an outer transaction can hold the bump until that outer
+  transaction commits with `config :ash_cache, after_commit: {Module, :fun}`:
+  `Module.fun/1` receives a zero-arity function and must call it once the
+  outer transaction has committed, or drop it if it rolls back.
   """
 
   use Ash.Resource.Change
@@ -24,8 +30,10 @@ defmodule AshCache.Changes.InvalidateCache do
     Ash.Changeset.after_transaction(changeset, fn changeset, result ->
       case result do
         {:ok, record} ->
-          bump(store, changeset.resource)
-          recache_reads(changeset, record, recaches)
+          run_after_commit(fn ->
+            bump(store, changeset.resource)
+            recache_reads(changeset, record, recaches)
+          end)
 
         _error ->
           :noop
@@ -33,6 +41,14 @@ defmodule AshCache.Changes.InvalidateCache do
 
       result
     end)
+  end
+
+  defp run_after_commit(work) do
+    case Process.get(:ash_cache_after_commit) ||
+           Application.get_env(:ash_cache, :after_commit) do
+      {module, function} -> apply(module, function, [work])
+      nil -> work.()
+    end
   end
 
   # The store refused both writing and deleting the counter, so reads may
