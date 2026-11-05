@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 — 2026-11-06
+
+### Changes
+
+- `config :ash_cache, after_commit: {Module, :fun}` holds the cache bump and
+  `recache_after_write` reads until the app's outer transaction commits.
+  Without it, a write nested in an outer transaction bumped the cache before
+  that transaction committed, so a read in between could cache stale data.
+  Unset, nothing changes.
+
 ## 0.2.0 — 2026-11-04
 
 ### Breaking changes

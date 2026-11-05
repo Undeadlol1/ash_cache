@@ -48,6 +48,53 @@ defmodule AshCache.Changes.InvalidateCacheTest do
     assert CacheVersion.current(store, Widget) == before
   end
 
+  describe "an app that holds work until its outer transaction commits" do
+    defmodule HoldUntilOuterCommit do
+      def hold(work), do: send(self(), {:held_until_commit, work})
+    end
+
+    setup do
+      Process.put(:ash_cache_after_commit, {HoldUntilOuterCommit, :hold})
+      on_exit(fn -> Process.delete(:ash_cache_after_commit) end)
+    end
+
+    test "the cache version is bumped only when the app runs the held work", %{
+      store: store,
+      opts: opts
+    } do
+      changeset = changeset_with_bump(opts)
+      before = CacheVersion.current(store, Widget)
+
+      write_result = {:ok, %{name: "a"}}
+      assert complete_transaction(changeset, write_result) == write_result
+      assert CacheVersion.current(store, Widget) == before
+
+      assert_received {:held_until_commit, held_work}
+      held_work.()
+      refute CacheVersion.current(store, Widget) == before
+    end
+
+    test "a failed write hands the app nothing to hold", %{store: store, opts: opts} do
+      changeset = changeset_with_bump(opts)
+      before = CacheVersion.current(store, Widget)
+
+      write_result = {:error, :boom}
+      assert complete_transaction(changeset, write_result) == write_result
+      refute_received {:held_until_commit, _work}
+      assert CacheVersion.current(store, Widget) == before
+    end
+
+    test "an outer rollback that drops the held work leaves the cache version as it was",
+         %{store: store, opts: opts} do
+      changeset = changeset_with_bump(opts)
+      before = CacheVersion.current(store, Widget)
+
+      complete_transaction(changeset, {:ok, %{name: "a"}})
+      assert_received {:held_until_commit, _dropped_on_rollback}
+      assert CacheVersion.current(store, Widget) == before
+    end
+  end
+
   describe "recaching after a write, through real actions" do
     alias AshCache.Test.Events
     alias AshCache.Test.RecachedWidget
