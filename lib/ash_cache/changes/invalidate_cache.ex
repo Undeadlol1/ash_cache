@@ -11,8 +11,9 @@ defmodule AshCache.Changes.InvalidateCache do
   Ash's `after_transaction` runs when Ash's own transaction ends. An app that
   wraps the write in an outer transaction can hold the bump until that outer
   transaction commits with `config :ash_cache, after_commit: {Module, :fun}`:
-  `fun` receives a zero-arity function and must call it once the
-  outer transaction has committed, or drop it if it rolls back.
+  the write then hands `fun` a zero-arity function from `after_action`, and
+  `fun` must call it once the outermost transaction has committed, or drop it
+  if it rolls back.
   """
 
   use Ash.Resource.Change
@@ -27,28 +28,33 @@ defmodule AshCache.Changes.InvalidateCache do
     store = Keyword.fetch!(opts, :store)
     recaches = Keyword.get(opts, :recache_after_write, [])
 
-    Ash.Changeset.after_transaction(changeset, fn changeset, result ->
-      case result do
-        {:ok, record} ->
-          run_after_commit(fn ->
-            bump(store, changeset.resource)
-            recache_reads(changeset, record, recaches)
-          end)
-
-        _error ->
-          :noop
+    work_after_write = fn changeset, record ->
+      fn ->
+        bump(store, changeset.resource)
+        recache_reads(changeset, record, recaches)
       end
+    end
 
-      result
-    end)
+    case app_after_commit() do
+      nil ->
+        Ash.Changeset.after_transaction(changeset, fn changeset, result ->
+          with {:ok, record} <- result, do: work_after_write.(changeset, record).()
+          result
+        end)
+
+      {module, function} ->
+        Ash.Changeset.after_action(changeset, fn changeset, record ->
+          apply(module, function, [work_after_write.(changeset, record)])
+          {:ok, record}
+        end)
+    end
   end
 
-  defp run_after_commit(work) do
-    case Process.get(:ash_cache_after_commit) ||
-           Application.get_env(:ash_cache, :after_commit) do
-      {module, function} -> apply(module, function, [work])
-      nil -> work.()
-    end
+  # With the app holding work until its outermost commit, the hand-over happens
+  # inside the write: an after_transaction hook here would itself run inside the
+  # app's still-open transaction.
+  defp app_after_commit do
+    Process.get(:ash_cache_after_commit) || Application.get_env(:ash_cache, :after_commit)
   end
 
   # The store refused both writing and deleting the counter, so reads may
