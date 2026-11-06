@@ -58,6 +58,19 @@ defmodule AshCache.Changes.InvalidateCacheTest do
       on_exit(fn -> Process.delete(:ash_cache_after_commit) end)
     end
 
+    defp complete_write(changeset, record) do
+      [hook] = changeset.after_action
+      hook.(changeset, record)
+    end
+
+    test "registers no after-transaction hook, so nothing runs inside the app's open transaction",
+         %{opts: opts} do
+      changeset = changeset_with_bump(opts)
+
+      assert changeset.after_transaction == []
+      assert length(changeset.after_action) == 1
+    end
+
     test "the cache version is bumped only when the app runs the held work", %{
       store: store,
       opts: opts
@@ -65,8 +78,7 @@ defmodule AshCache.Changes.InvalidateCacheTest do
       changeset = changeset_with_bump(opts)
       before = CacheVersion.current(store, Widget)
 
-      write_result = {:ok, %{name: "a"}}
-      assert complete_transaction(changeset, write_result) == write_result
+      assert complete_write(changeset, %{name: "a"}) == {:ok, %{name: "a"}}
       assert CacheVersion.current(store, Widget) == before
 
       assert_received {:held_until_commit, held_work}
@@ -74,22 +86,12 @@ defmodule AshCache.Changes.InvalidateCacheTest do
       refute CacheVersion.current(store, Widget) == before
     end
 
-    test "a failed write hands the app nothing to hold", %{store: store, opts: opts} do
-      changeset = changeset_with_bump(opts)
-      before = CacheVersion.current(store, Widget)
-
-      write_result = {:error, :boom}
-      assert complete_transaction(changeset, write_result) == write_result
-      refute_received {:held_until_commit, _work}
-      assert CacheVersion.current(store, Widget) == before
-    end
-
     test "an outer rollback that drops the held work leaves the cache version as it was",
          %{store: store, opts: opts} do
       changeset = changeset_with_bump(opts)
       before = CacheVersion.current(store, Widget)
 
-      complete_transaction(changeset, {:ok, %{name: "a"}})
+      complete_write(changeset, %{name: "a"})
       assert_received {:held_until_commit, _dropped_on_rollback}
       assert CacheVersion.current(store, Widget) == before
     end

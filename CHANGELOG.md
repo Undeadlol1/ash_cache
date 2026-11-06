@@ -8,7 +8,9 @@
   `recache_after_write` reads until the app's outer transaction commits.
   Without it, a write nested in an outer transaction bumped the cache before
   that transaction committed, so a read in between could cache stale data.
-  Unset, nothing changes.
+  With it set, the write hands the work over from `after_action`, so no
+  AshCache hook runs inside the app's still-open transaction. Unset, nothing
+  changes.
 
 ## 0.2.0 — 2026-11-04
 
