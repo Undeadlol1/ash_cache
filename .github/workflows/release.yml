@@ -1,0 +1,67 @@
+name: Release
+
+# Publishes to hex.pm when a push to main carries a version (in mix.exs) that
+# hex.pm doesn't have yet, then tags that commit v<version>.
+# No secret needed: hex.pm trusts this workflow via workload identity (OIDC).
+on:
+  push:
+    branches: [main]
+    # Only a mix.exs change can bump the version, so skip every other push.
+    paths: [mix.exs]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is this version new?
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^  @version "\(.*\)"$/\1/p' mix.exs)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://hex.pm/api/packages/ash_cache/releases/$VERSION")
+          if [ "$STATUS" = "404" ]; then
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          elif [ "$STATUS" = "200" ]; then
+            echo "$VERSION is already on hex.pm, nothing to publish."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "hex.pm answered $STATUS, can't tell. Stopping to be safe."
+            exit 1
+          fi
+
+      - uses: erlef/setup-beam@v1
+        if: steps.version.outputs.new == 'true'
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      # main isn't protected, so run the same checks as CI before publishing.
+      - name: Run CI checks
+        if: steps.version.outputs.new == 'true'
+        run: |
+          mix deps.get
+          mix format --check-formatted
+          mix compile --warnings-as-errors
+          mix test --warnings-as-errors --include multi_server
+          mix docs --warnings-as-errors
+
+      # Mix trades GitHub's id-token for a hex.pm key by itself.
+      - name: Publish
+        if: steps.version.outputs.new == 'true'
+        run: mix hex.publish --yes
+
+      # The docs' "view source" links point at this tag.
+      - name: Tag the release
+        if: steps.version.outputs.new == 'true'
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
