@@ -44,12 +44,15 @@ jobs:
           version-file: .tool-versions
           version-type: strict
 
-      # main isn't protected, so don't trust that CI passed: check again.
-      - name: Test before publishing
+      # main isn't protected, so run the same checks as CI before publishing.
+      - name: Run CI checks
         if: steps.version.outputs.new == 'true'
         run: |
           mix deps.get
+          mix format --check-formatted
+          mix compile --warnings-as-errors
           mix test --warnings-as-errors --include multi_server
+          mix docs --warnings-as-errors
 
       # Mix trades GitHub's id-token for a hex.pm key by itself.
       - name: Publish
