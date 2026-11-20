@@ -121,6 +121,8 @@ related resource changes, or by hand after an import, see
   read is cached and that a write clears it, keep parallel tests apart.
 - [How AshCache works](documentation/topics/how-it-works.md): what goes in
   a cache key, how clearing works, and the limits.
+- [Rules and limits](documentation/topics/rules-and-limits.md): what is
+  saved, what is in a key, settings, telemetry events and limits.
 - [DSL reference](documentation/dsls/DSL-AshCache.Resource.md): every
   option in the `cache` block.
 
@@ -145,6 +147,9 @@ related resource changes, or by hand after an import, see
   runs out, so use `:infinity` only for data that is rarely written.
 - **Writes get a little slower.** Each write has to clear the cache.
   Measure before caching a resource that is written to constantly.
+
+The full list is in
+[Rules and limits](documentation/topics/rules-and-limits.md#limits).
 
 ## For AI assistants
 

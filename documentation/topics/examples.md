@@ -4,8 +4,8 @@ Each section below is a feature you might have in your app, with the
 `cache` block for it and why it is set up that way. Every option is listed
 in the [DSL reference](../dsls/DSL-AshCache.Resource.md).
 
-Each example sets `ttl` on purpose. A read without one keeps its results
-for 5 minutes, or for the `cache` block's `ttl` if you set one.
+Each example sets `ttl` on purpose; the default is in
+[What is saved](rules-and-limits.md#what-is-saved).
 
 Two things apply to every example:
 
@@ -193,15 +193,8 @@ Each set of arguments, each actor and each tenant gets its own entry.
 AshCache cannot see when the other service changes its data, so `ttl` is
 how old a rate can get.
 
-Errors are not saved, so a failed call is tried again next time. `nil` is
-never saved, and `[]` is saved only with `cache_empty?: true`. Ash still
-checks the resource's policies on every call, also when the answer comes
-from the cache.
-
-The action must have a return type. An action whose `run` is a Reactor
-cannot be cached; call the Reactor from a `run` function instead. If the
-call is a read action with `manual` (a read you write yourself instead of a
-database query), cache it with `read` instead of `action`.
+What an action saves, and which actions can't be cached, is in
+[What is saved](rules-and-limits.md#what-is-saved).
 
 Don't cache the rate a customer is charged with. Skip the cache for that
 call:
@@ -267,9 +260,8 @@ cache can't see that change and serves the old answer until the `ttl` runs
 out. Changing any attribute, even one the calculation doesn't use, makes it
 run again. Identical misses at the same moment each run the calculation.
 
-Only module calculations can be cached. An expression calculation already
-runs in the database, and it is saved inside the cached read that loads it.
-Naming one in the `cache` block is a compile error.
+Only module calculations can be cached; see
+[What is saved](rules-and-limits.md#what-is-saved).
 
 To skip the cache for one load:
 

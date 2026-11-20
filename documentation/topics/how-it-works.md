@@ -25,11 +25,8 @@ records.
 If that first request fails or its process dies, one of the waiting
 requests asks the database instead. If it takes longer than 5 seconds, the
 waiting requests stop waiting and each ask the database themselves. Change
-the limit with:
-
-```elixir
-config :ash_cache, rebuild_timeout: :timer.seconds(10)
-```
+the limit with `rebuild_timeout`; see
+[Settings](rules-and-limits.md#settings).
 
 This happens on each server separately, whatever the store: with several
 servers, each one asks the database at most once per key at a time.
@@ -50,8 +47,8 @@ it calls `run`, so they are checked on every call.
 - If it is not found, the action's own `run` is called. If it succeeded,
   its result is saved under that key.
 
-Errors and `nil` are never saved. `[]` is saved only with
-`cache_empty?: true`.
+What an action saves is in
+[What is saved](rules-and-limits.md#what-is-saved).
 
 As with reads, identical calls that miss at the same moment on one server
 share one `run` call (see "When many requests miss at once" above), and
@@ -68,12 +65,11 @@ calculation runs once, only for the records that were not found.
 - If a record's key is found, the stored result is used.
 - If it is not found, the calculation runs and its result is saved.
 
-`nil` and `[]` are results and are saved. An error is returned and never
-saved.
+What a calculation saves is in
+[What is saved](rules-and-limits.md#what-is-saved).
 
-The key holds the calculation's arguments, the actor, the tenant, every
-attribute of the record, and the value of every field the calculation loads
-(the fields its `load/3` names). When any of these changes, the key is
+What the key holds is in
+[What is in a key](rules-and-limits.md#what-is-in-a-key). When any of it changes, the key is
 new, so a changed record is never answered with an old result. The old
 entries are not deleted; they expire after the `ttl`. Writes and
 `AshCache.invalidate/1` do not touch calculation entries, and there is no
@@ -85,17 +81,9 @@ listing one is a compile error.
 
 ## What is in a key
 
-A key is built from:
-
-1. the resource,
-2. the resource's current **version value** (explained below), and the
-   version value of each resource listed in `clear_when_changed`,
-3. the name of the action,
-4. for a read, everything about the query that affects its result:
-   arguments, filter, sort, limit, offset, page, distinct, select, load,
-   calculations and aggregates.
-   For a generic action, its arguments,
-5. the current actor and tenant.
+What goes into a key is listed in
+[Rules and limits](rules-and-limits.md#what-is-in-a-key); the resource's
+**version value** is explained in [On a write](#on-a-write).
 
 Because the whole query is in the key, a lookup by id, a filtered list and
 page two of a list each get their own entry.
@@ -175,13 +163,9 @@ logged and ignored; the version bump has already removed the stale entry.
 
 ## Seeing what the cache does
 
-Each cached read sends a `:telemetry` event: `[:ash_cache, :read, :hit]`
-when the result came from the cache, `[:ash_cache, :read, :miss]` when it
-went to the database. Each cached generic action sends
-`[:ash_cache, :action, :hit]` or `[:ash_cache, :action, :miss]` the same
-way. Each cached calculation sends `[:ash_cache, :calculation, :hit]` or
-`[:ash_cache, :calculation, :miss]` for every record. Each clear sends
-`[:ash_cache, :invalidate]`. Attach
+Each cached read, generic action and calculation sends a `:telemetry` event
+for a hit or a miss, and each clear sends one. The events are listed in
+[Rules and limits](rules-and-limits.md#telemetry-events). Attach
 a handler to count hit rates in production. The events and their metadata
 are listed in `AshCache`; for tests, use `AshCache.Testing` (see
 [How to test with AshCache](testing.md)).
@@ -205,27 +189,5 @@ In order from smallest to largest:
 
 ## Limits
 
-- **Values computed from another resource need it listed.** A cached entry
-  holds the rows and what the data layer computed with them: aggregates,
-  calculations, and the effect of a filter, sort or policy. It does not hold
-  related records: Ash loads those after the rows on every read, so they
-  are always fresh. When the computed part reaches another resource,
-  AshCache stores the result only if every resource on the way is the
-  resource itself or in `clear_when_changed` (a `many_to_many` counts its
-  join resource too). Otherwise the read goes to the data layer every time.
-  A value loaded under a name of its own (`Ash.Query.calculate/4`,
-  `Ash.Query.aggregate/4`) cannot be traced, so it is never cached. See
-  `AshCache.Dependencies`.
-- **Writes get slower.** Every write stores a new value in the cache. In one
-  write-heavy test suite, caching the resource roughly doubled the suite's
-  runtime. Measure before caching a resource that is written to constantly.
-- **No clearing per record.** See "On a write" above.
-- **A cached calculation can serve an old answer.** If it reads anything
-  that is not on the record (an outside API, the clock, the query's
-  context), a change there is not in the key, so the old result is served
-  until the `ttl` runs out.
-- **Any attribute change recomputes a calculation.** Every attribute is in
-  the key, also the ones the calculation does not use.
-- **No sharing of simultaneous misses for calculations.** Reads and generic
-  actions share one run (see "When many requests miss at once"); calculations
-  don't, so identical misses at the same moment each run the calculation.
+The limits are listed in [Rules and limits](rules-and-limits.md#limits).
+The reasons are in the sections above.
