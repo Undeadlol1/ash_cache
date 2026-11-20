@@ -67,13 +67,17 @@ defmodule AshCache.MixProject do
         "documentation/topics/how-it-works.md",
         "documentation/topics/storage.md",
         "documentation/topics/testing.md",
+        "documentation/topics/rules-and-limits.md",
         {"documentation/dsls/DSL-AshCache.Resource.md",
          search_data: Spark.Docs.search_data_for(AshCache.Resource)},
         "CHANGELOG.md"
       ],
       groups_for_extras: [
-        Topics: ~r"documentation/topics",
-        Reference: ~r"documentation/dsls",
+        Topics: ~r"documentation/topics/(?!rules-and-limits)",
+        Reference: [
+          "documentation/topics/rules-and-limits.md",
+          "documentation/dsls/DSL-AshCache.Resource.md"
+        ],
         "About AshCache": ["CHANGELOG.md"]
       ],
       groups_for_modules: [

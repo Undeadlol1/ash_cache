@@ -6,26 +6,15 @@ when it happens, and what to do in the cases AshCache can't see.
 
 ## What clears the cache
 
-A cached result is thrown away when:
-
-1. **The resource is changed through Ash.** Creating, updating or deleting
-   any product throws away every cached product read and generic action,
-   right away.
-2. **A resource listed in `clear_when_changed` is changed through Ash.**
-   See [Related resources](#related-resources).
-3. **Its `ttl` runs out**, even if nothing changed.
-4. **You clear it by hand** with `AshCache.invalidate/1` or
-   `AshCache.clear_store/1`. See [Clear by hand](#clear-by-hand).
-
-Nothing else clears it. A change made without Ash, such as raw SQL, an
-import script or another service writing to the same table, shows up only
-when `ttl` runs out.
+The four cases, and what AshCache can't see, are listed in
+[Rules and limits](rules-and-limits.md#what-clears-the-cache). Related
+resources and clearing by hand are explained below.
 
 ## A write clears the whole resource
 
 Any write to a resource clears every cached read of that resource, not
-only the entries that contain the changed record. Updating one product
-clears the cached lookup of every product.
+only the entries that contain the changed record; see
+[Limits](rules-and-limits.md#limits).
 
 AshCache can't do better than this: an entry is saved under the query that
 produced it, so a write can't tell which entries hold the record it
