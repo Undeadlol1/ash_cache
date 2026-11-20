@@ -1,37 +1,9 @@
 # Rules and limits
 
-What AshCache clears, saves, keys on, configures and reports, and where it
-stops. Every option of the `cache` block is in the
+What AshCache saves, keys on, configures and reports, and where it stops.
+What clears the cache is in [When the cache clears](clearing.md). Every
+option of the `cache` block is in the
 [DSL reference](../dsls/DSL-AshCache.Resource.md).
-
-## What clears the cache
-
-A cached result is thrown away when:
-
-1. **The resource is changed through Ash.** Creating, updating or deleting
-   any product throws away every cached product read and generic action,
-   right away.
-2. **A resource listed in `clear_when_changed` is changed through Ash.**
-3. **Its `ttl` runs out**, even if nothing changed.
-4. **It is cleared by hand** with `AshCache.invalidate/1` or
-   `AshCache.clear_store/1`.
-
-Nothing else clears it. A change made without Ash, such as raw SQL, an
-import script or another service writing to the same table, shows up only
-when `ttl` runs out.
-
-Any write to a resource clears every cached read of that resource, not
-only the entries that contain the changed record. Updating one product
-clears the cached lookup of every product.
-
-The cache is cleared after the database transaction commits. A write that
-fails or is rolled back leaves the cache as it was.
-
-Calculation entries are not cleared by writes or by
-`AshCache.invalidate/1`, and there is no `clear_when_changed` for them.
-
-How to clear: [When the cache clears](clearing.md). Why it works this way:
-[How AshCache works](how-it-works.md#on-a-write).
 
 ## What is saved
 
@@ -40,12 +12,14 @@ How to clear: [When the cache clears](clearing.md). Why it works this way:
   read or action overrides the block's.
 - **Reads:** a result is saved if it has at least one record. An empty
   result is saved only with `cache_empty?: true` on the `read`.
-- **Generic actions:** errors and `nil` are never saved. `[]` is saved
-  only with `cache_empty?: true`. The action must have a return type. An
-  action whose `run` is a Reactor cannot be cached; call the Reactor from a
-  `run` function instead. A read action with `manual` is cached with `read`,
-  not `action`. Ash checks the resource's policies on every call, also when
-  the answer comes from the cache.
+- **Generic actions:** errors are never saved, so a failed call is tried
+  again next time. `nil` is never saved. `[]` is saved only with
+  `cache_empty?: true`. The action must have a return type. An action whose
+  `run` is a Reactor cannot be cached; call the Reactor from a `run`
+  function instead. A read action with `manual` (a read you write yourself
+  instead of a database query) is cached with `read`, not `action`. Ash
+  checks the resource's policies on every call, also when the answer comes
+  from the cache.
 - **Calculations:** `nil` and `[]` are saved. An error is never saved. Only
   module calculations can be cached; naming an expression calculation in
   the `cache` block is a compile error.

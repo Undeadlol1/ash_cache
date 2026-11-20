@@ -121,9 +121,8 @@ related resource changes, or by hand after an import, see
   read is cached and that a write clears it, keep parallel tests apart.
 - [How AshCache works](documentation/topics/how-it-works.md): what goes in
   a cache key, how clearing works, and the limits.
-- [Rules and limits](documentation/topics/rules-and-limits.md): what clears
-  the cache, what is saved, what is in a key, settings, telemetry events and
-  limits.
+- [Rules and limits](documentation/topics/rules-and-limits.md): what is
+  saved, what is in a key, settings, telemetry events and limits.
 - [DSL reference](documentation/dsls/DSL-AshCache.Resource.md): every
   option in the `cache` block.
 
