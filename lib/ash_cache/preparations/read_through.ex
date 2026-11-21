@@ -170,6 +170,7 @@ defmodule AshCache.Preparations.ReadThrough do
       page: query.page,
       distinct: query.distinct,
       distinct_sort: query.distinct_sort,
+      combination_of: query.combination_of,
       select: query.select,
       load: query.load,
       # `Ash.Query.load/2` puts calculations and aggregates here, not in `load`.

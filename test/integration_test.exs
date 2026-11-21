@@ -347,6 +347,19 @@ defmodule AshCache.IntegrationTest do
     assert Events.drain() == [:miss, :miss]
   end
 
+  test "a query with combinations is not served the plain read's cached rows" do
+    create!("a", 1)
+    create!("b", 2)
+    assert length(Ash.read!(CachedWidget)) == 2
+
+    only_one =
+      CachedWidget
+      |> Ash.Query.combination_of([Ash.Query.Combination.base(filter: expr(quantity == 1))])
+      |> Ash.read!()
+
+    assert length(only_one) == 1
+  end
+
   test "each cached read is stored with its own ttl" do
     TwoTtlWidget
     |> Ash.Changeset.for_create(:create, %{name: "ttl"})
