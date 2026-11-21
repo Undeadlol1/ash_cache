@@ -10,13 +10,15 @@ defmodule AshCache.Test.Library do
   defmacro __using__(opts) do
     clear_when_changed = Keyword.get(opts, :clear_when_changed, [])
     read_policy? = Keyword.get(opts, :read_policy_over_books?, false)
+    membership_policy? = Keyword.get(opts, :read_policy_over_memberships?, false)
 
     quote do
       use Ash.Resource,
         domain: AshCache.Test.LibraryDomain,
         data_layer: Ash.DataLayer.Ets,
         extensions: [AshCache.Resource],
-        authorizers: unquote(if read_policy?, do: [Ash.Policy.Authorizer], else: [])
+        authorizers:
+          unquote(if read_policy? or membership_policy?, do: [Ash.Policy.Authorizer], else: [])
 
       ets do
         private?(true)
@@ -31,6 +33,7 @@ defmodule AshCache.Test.Library do
       end
 
       unquote(if read_policy?, do: AshCache.Test.Library.read_policy_over_books())
+      unquote(if membership_policy?, do: AshCache.Test.Library.read_policy_over_memberships())
 
       attributes do
         uuid_primary_key(:id)
@@ -87,6 +90,24 @@ defmodule AshCache.Test.Library do
       policies do
         policy action_type(:read) do
           authorize_if(expr(exists(books, pages > 0)))
+        end
+
+        policy always() do
+          authorize_if(always())
+        end
+      end
+    end
+    |> as_field_names()
+  end
+
+  # `Membership` is not a relationship of the author: the policy names it as a
+  # resource, and the actor is the user whose membership it looks for.
+  @doc false
+  def read_policy_over_memberships do
+    quote do
+      policies do
+        policy action_type(:read) do
+          authorize_if(expr(exists(AshCache.Test.Membership, user_id == ^actor(:id))))
         end
 
         policy always() do
@@ -158,6 +179,40 @@ defmodule AshCache.Test.BookGuardedAuthor do
   use AshCache.Test.Library,
     read_policy_over_books?: true,
     clear_when_changed: [AshCache.Test.Book]
+end
+
+defmodule AshCache.Test.MembershipGuardedAuthor do
+  @moduledoc "Reads are allowed for a user with a membership, a resource the author has no relationship to."
+  use AshCache.Test.Library, read_policy_over_memberships?: true
+end
+
+defmodule AshCache.Test.MembershipTrackingGuardedAuthor do
+  @moduledoc "The same policy, with memberships listed in `clear_when_changed`."
+  use AshCache.Test.Library,
+    read_policy_over_memberships?: true,
+    clear_when_changed: [AshCache.Test.Membership]
+end
+
+defmodule AshCache.Test.Membership do
+  @moduledoc "Unrelated to the authors: only a policy's `exists` reaches it."
+
+  use Ash.Resource,
+    domain: AshCache.Test.LibraryDomain,
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [AshCache.Resource]
+
+  ets do
+    private?(true)
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:user_id, :uuid, allow_nil?: false, public?: true)
+  end
+
+  actions do
+    defaults([:read, :destroy, create: :*])
+  end
 end
 
 defmodule AshCache.Test.Book do
@@ -332,6 +387,9 @@ defmodule AshCache.Test.LibraryDomain do
     resource(AshCache.Test.FullyTrackingAuthor)
     resource(AshCache.Test.GuardedAuthor)
     resource(AshCache.Test.BookGuardedAuthor)
+    resource(AshCache.Test.MembershipGuardedAuthor)
+    resource(AshCache.Test.MembershipTrackingGuardedAuthor)
+    resource(AshCache.Test.Membership)
     resource(AshCache.Test.Book)
     resource(AshCache.Test.Review)
     resource(AshCache.Test.Tag)

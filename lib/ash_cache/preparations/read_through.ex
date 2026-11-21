@@ -4,7 +4,8 @@ defmodule AshCache.Preparations.ReadThrough do
 
   On a cache hit the query result is set via `Ash.Query.set_result/2`, so
   the data layer is never called. On a miss, an `after_action` hook caches
-  the records the action returns.
+  the records the action returns, before the action's own `after_action`
+  hooks run, so those hooks run once per read, hit or miss.
 
   The cache key is derived inside a `before_action` hook, not at
   preparation time: preparations run before the framework has applied
@@ -169,6 +170,8 @@ defmodule AshCache.Preparations.ReadThrough do
       offset: query.offset,
       page: query.page,
       distinct: query.distinct,
+      distinct_sort: query.distinct_sort,
+      combination_of: query.combination_of,
       select: query.select,
       load: query.load,
       # `Ash.Query.load/2` puts calculations and aggregates here, not in `load`.
@@ -194,8 +197,9 @@ defmodule AshCache.Preparations.ReadThrough do
     cache_empty? = Keyword.get(opts, :cache_empty?, false)
     store_opts = Keyword.put(Keyword.get(opts, :store_options, []), :ttl, ttl)
 
-    Ash.Query.after_action(query, fn _query, records ->
-      if cacheable?(records, cache_empty?) and
+    hook = fn _query, records ->
+      # ponytail: a query with combinations is never cached, because the dependency check does not walk the combinations' own filters; walk them in AshCache.Dependencies to lift this.
+      if query.combination_of == [] and cacheable?(records, cache_empty?) and
            Dependencies.all_known?(query, records, Keyword.get(opts, :clear_when_changed, [])) do
         Store.put(store, key, records, store_opts)
       end
@@ -203,7 +207,13 @@ defmodule AshCache.Preparations.ReadThrough do
       release(lease, {:ok, records})
 
       {:ok, records}
-    end)
+    end
+
+    # Put first by hand, not with `Ash.Query.after_action/2`: that appends or
+    # prepends by an app-wide Ash setting, and the action's own hooks must
+    # never run before this one, or a hit would run them a second time over
+    # rows they already changed.
+    %{query | after_action: [hook | query.after_action]}
   end
 
   defp cacheable?(records, cache_empty?), do: cache_empty? or records not in [nil, []]

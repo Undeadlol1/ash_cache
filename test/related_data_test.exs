@@ -12,6 +12,9 @@ defmodule AshCache.RelatedDataTest do
   alias AshCache.Test.FullyTrackingAuthor
   alias AshCache.Test.GuardedAuthor
   alias AshCache.Test.Loan
+  alias AshCache.Test.Membership
+  alias AshCache.Test.MembershipGuardedAuthor
+  alias AshCache.Test.MembershipTrackingGuardedAuthor
   alias AshCache.Test.Review
   alias AshCache.Test.Tag
   alias AshCache.Test.TagTrackingAuthor
@@ -280,6 +283,51 @@ defmodule AshCache.RelatedDataTest do
 
       assert [] = Ash.read!(BookGuardedAuthor)
       assert Events.drain() == [:miss]
+    end
+  end
+
+  describe "a policy over a resource that is not a relationship" do
+    setup do
+      %{user: %{id: Ash.UUID.generate()}}
+    end
+
+    defp read_as_twice(resource, user) do
+      Events.drain()
+      Ash.read!(resource, actor: user)
+      rows = Ash.read!(resource, actor: user)
+      {rows, Events.drain()}
+    end
+
+    test "is not cached when that resource is not listed", %{user: user} do
+      create!(MembershipGuardedAuthor, %{name: "Ann"})
+      create!(Membership, %{user_id: user.id})
+
+      assert {[_author], [:miss, :miss]} = read_as_twice(MembershipGuardedAuthor, user)
+    end
+
+    test "is cached when that resource is listed, and a write to it clears the entry", %{
+      user: user
+    } do
+      create!(MembershipTrackingGuardedAuthor, %{name: "Ann"})
+      membership = create!(Membership, %{user_id: user.id})
+
+      assert {[_author], [:miss, :hit]} = read_as_twice(MembershipTrackingGuardedAuthor, user)
+
+      Ash.destroy!(membership)
+      Events.drain()
+
+      assert [] = Ash.read!(MembershipTrackingGuardedAuthor, actor: user)
+      assert Events.drain() == [:miss]
+    end
+
+    test "stops returning rows once the actor loses access", %{user: user} do
+      create!(MembershipGuardedAuthor, %{name: "Ann"})
+      membership = create!(Membership, %{user_id: user.id})
+      assert {[_author], _events} = read_as_twice(MembershipGuardedAuthor, user)
+
+      Ash.destroy!(membership)
+
+      assert [] = Ash.read!(MembershipGuardedAuthor, actor: user)
     end
   end
 
