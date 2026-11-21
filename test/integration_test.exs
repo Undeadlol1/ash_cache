@@ -1,6 +1,8 @@
 defmodule AshCache.IntegrationTest do
   use ExUnit.Case, async: true
 
+  import Ash.Expr
+
   alias AshCache.Test.CachedWidget
   alias AshCache.Test.Domain
   alias AshCache.Test.Events
@@ -302,6 +304,47 @@ defmodule AshCache.IntegrationTest do
     assert length(limited.()) == 1
     assert length(Ash.read!(CachedWidget)) == 2
     assert Events.drain() == [:hit, :hit]
+  end
+
+  test "queries that differ only by distinct_sort do not collide in the cache" do
+    create!("a", 1)
+    create!("a", 2)
+    Events.drain()
+
+    distinct_by_quantity = fn order ->
+      CachedWidget
+      |> Ash.Query.distinct([:name])
+      |> Ash.Query.distinct_sort(quantity: order)
+      |> Ash.read!()
+      |> Enum.map(& &1.quantity)
+    end
+
+    assert distinct_by_quantity.(:asc) == [1]
+    assert distinct_by_quantity.(:desc) == [2]
+    assert Events.drain() == [:miss, :miss]
+
+    assert distinct_by_quantity.(:asc) == [1]
+    assert distinct_by_quantity.(:desc) == [2]
+    assert Events.drain() == [:hit, :hit]
+  end
+
+  test "a query with combinations is never served from the cache" do
+    create!("a", 1)
+    create!("b", 2)
+    Events.drain()
+
+    combined = fn ->
+      CachedWidget
+      |> Ash.Query.combination_of([
+        Ash.Query.Combination.base(filter: expr(quantity == 1)),
+        Ash.Query.Combination.union(filter: expr(quantity == 2))
+      ])
+      |> Ash.read!()
+    end
+
+    assert length(combined.()) == 2
+    assert length(combined.()) == 2
+    assert Events.drain() == [:miss, :miss]
   end
 
   test "each cached read is stored with its own ttl" do

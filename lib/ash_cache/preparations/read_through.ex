@@ -169,6 +169,7 @@ defmodule AshCache.Preparations.ReadThrough do
       offset: query.offset,
       page: query.page,
       distinct: query.distinct,
+      distinct_sort: query.distinct_sort,
       select: query.select,
       load: query.load,
       # `Ash.Query.load/2` puts calculations and aggregates here, not in `load`.
@@ -195,7 +196,8 @@ defmodule AshCache.Preparations.ReadThrough do
     store_opts = Keyword.put(Keyword.get(opts, :store_options, []), :ttl, ttl)
 
     Ash.Query.after_action(query, fn _query, records ->
-      if cacheable?(records, cache_empty?) and
+      # ponytail: a query with combinations is never cached, because the dependency check does not walk the combinations' own filters; walk them in AshCache.Dependencies to lift this.
+      if query.combination_of == [] and cacheable?(records, cache_empty?) and
            Dependencies.all_known?(query, records, Keyword.get(opts, :clear_when_changed, [])) do
         Store.put(store, key, records, store_opts)
       end
