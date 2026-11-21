@@ -8,6 +8,8 @@ defmodule AshCache.Dependencies do
   resources through:
 
     * the filter, including the filter a policy adds (`exists(team.members, ...)`)
+    * an `exists` over a resource that is not a relationship
+      (`exists(Membership, user_id == ^actor(:id))`), wherever it appears
     * the sort and distinct, when they use an aggregate or a calculation
     * loaded aggregates, such as a count of comments
     * loaded calculations the data layer computed, such as an expression
@@ -53,6 +55,7 @@ defmodule AshCache.Dependencies do
        |> Enum.map(&Ash.Filter.map(&1, fn expr -> as_own_key(query.resource, expr) end))
        |> Enum.flat_map(&relationship_paths/1)
        |> Enum.flat_map(&along_path(query.resource, &1))
+       |> Enum.concat(Enum.flat_map(expressions, &unrelated_resources(query.resource, &1)))
        |> Enum.uniq()}
     end
   end
@@ -96,6 +99,45 @@ defmodule AshCache.Dependencies do
           do: path ++ counted
 
     Ash.Filter.relationship_paths(expression, true, false, true) ++ aggregate_paths
+  end
+
+  # Ash's walk returns no path for `exists(OtherResource, ...)`, so these are
+  # found here: the resource itself, and what the exists reaches from it.
+  # Neither Ash's flat_map nor its path walk looks inside a calculation or an
+  # aggregate's filter from here, so both are entered by hand.
+  defp unrelated_resources(resource, expression) do
+    resource
+    |> as_expression(expression)
+    |> Ash.Filter.flat_map(fn
+      %Ash.Query.Exists{related?: false, resource: other, expr: inner} ->
+        paths = inner |> relationship_paths() |> Enum.flat_map(&along_path(other, &1))
+        [other | paths ++ unrelated_resources(other, inner)]
+
+      %Ash.Query.Exists{expr: inner} ->
+        unrelated_resources(resource, inner)
+
+      %Ref{attribute: %Ash.Query.Aggregate{query: %{filter: filter}}} when filter != nil ->
+        unrelated_resources(resource, filter)
+
+      %Ref{attribute: %Ash.Query.Calculation{module: module, opts: opts, context: context}} ->
+        with true <- Ash.Resource.Calculation.has_expression?(module),
+             {:ok, hydrated} <-
+               Ash.Filter.hydrate_refs(
+                 Ash.Resource.Calculation.expression(module, opts, context),
+                 %{
+                   resource: resource,
+                   relationship_path: [],
+                   public?: false
+                 }
+               ) do
+          unrelated_resources(resource, hydrated)
+        else
+          _no_expression_or_not_hydrated -> []
+        end
+
+      _other ->
+        []
+    end)
   end
 
   defp sort_fields(query) do
