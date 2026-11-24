@@ -103,6 +103,23 @@ end
 Writes don't clear these results; they run out with their `ttl`. See
 "A slow calculation" in [Examples](documentation/topics/examples.md).
 
+### Keep a small value you ask for many times
+
+A cache hit still runs the whole Ash read: the query is built and policies
+are checked. For a small fact asked hundreds of times per request, such as
+a feature flag or one user's setting, keep the value itself:
+
+```elixir
+AshCache.remember(MyApp.FeatureFlag, {:flags_for, user.id}, fn ->
+  {:ok, MyApp.FeatureFlag.enabled_names!(user)}
+end, ttl: :timer.minutes(1))
+```
+
+A hit runs no Ash action and does not call the function. Any write to the
+resource (or to a resource in its `clear_when_changed`) drops the value.
+`AshCache.forget/2` drops one by hand. You decide who may see the value:
+put everything it depends on, such as the user id, in the key.
+
 ### Clearing the cache
 
 Writes through Ash clear the cache by themselves. To clear it when a

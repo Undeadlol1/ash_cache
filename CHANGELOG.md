@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- `AshCache.remember/4` keeps one small derived value in a resource's store
+  and answers it without running an Ash action: no query, no policy check.
+  A write to the resource, or to a resource in its `clear_when_changed`,
+  drops it, like a cached read. `AshCache.forget/2` drops one by hand.
+  Emits `[:ash_cache, :remember, :hit | :miss]`, which
+  `AshCache.Testing.capture_events/0` delivers too.
+
 ## 0.2.1 — 2026-11-06
 
 ### Changes

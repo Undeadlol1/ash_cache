@@ -80,6 +80,19 @@ when a requirement demands them.
   reads or actions. Waiters give up after
   `config :ash_cache, rebuild_timeout: ms` (default 5000) and run for
   themselves.
+- `AshCache.remember(Resource, key, fn -> {:ok, value} end, ttl: ms)` keeps
+  one small derived value in the resource's store. A hit runs no Ash action:
+  no query, no policy check, no loader call. Use it for a small fact asked
+  many times per request (a feature-flag snapshot, one user's setting); use a
+  cached read for everything else. Authorization is the caller's: `key` must
+  contain everything the value depends on (the user id, the tenant), or one
+  caller gets another's value. `{:ok, value}` is kept, `nil`, `false` and
+  `[]` included; `{:error, _}` and raises are not. `ttl` defaults to the
+  block's. Writes to the resource and to its `clear_when_changed` resources,
+  and `AshCache.invalidate/1`, drop it; `AshCache.forget(Resource, key)`
+  drops one value. It is not transaction-aware, like cached reads. The
+  resource must use `AshCache.Resource`. Events:
+  `[:ash_cache, :remember, :hit | :miss]` (`:resource`, `:store`, `:key`).
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
   Choose `ttl` per read: long for content that rarely changes, short for
   results that change without a write (time-based filters, data written
