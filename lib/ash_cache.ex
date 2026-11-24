@@ -173,6 +173,8 @@ defmodule AshCache do
       :erlang.raise(kind, reason, __STACKTRACE__)
   end
 
+  # The stored value is wrapped: a store answers `{:ok, nil}` for a miss, so
+  # a remembered `nil` would otherwise read back as one.
   defp load_and_keep(remembering, loader) do
     with {:ok, value} = result <- loader.() do
       Store.put(remembering.store, remembering.entry_key, {:remembered, value},
@@ -183,8 +185,6 @@ defmodule AshCache do
     end
   end
 
-  # The stored value is wrapped: a store answers `{:ok, nil}` for a miss, so
-  # a remembered `nil` would otherwise read back as one.
   defp entry_key(store, resource, key) do
     version = CacheVersion.for_key(store, resource, Info.cache_clear_when_changed!(resource))
     {:ash_cache_remembered, resource, version, key}
