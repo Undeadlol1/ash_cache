@@ -80,20 +80,20 @@ when a requirement demands them.
   reads or actions. Waiters give up after
   `config :ash_cache, rebuild_timeout: ms` (default 5000) and run for
   themselves.
-- `AshCache.read(Resource, :action, params, opts)` and
-  `AshCache.read_one/4` are the cached read, answered without running the
-  action: they return what `Ash.Query.for_read/4` piped into `Ash.read/2`
-  or `Ash.read_one/2` returns, and a hit is one store lookup with no query,
-  policy check or hook. Use them for a cached read asked many times per
-  request. The action must be a `read` in the `cache` block, or they raise
-  `ArgumentError`. The entry is keyed on the whole actor, the params and
-  every option, kept only when the cached read itself was served from or
-  stored in the cache, uses the read's `ttl`, and clears with the read's
-  entries. A policy that depends on anything other than the actor, the
-  params or data whose writes clear this cache is checked again only when
-  the entry expires or clears. Not transaction-aware.
-  `context: %{ash_cache: :bypass}` skips it. A hit emits
-  `[:ash_cache, :read, :hit]`.
+- A code-interface function (`define`, and its `!` form) of a read listed
+  in the `cache` block answers a repeated call from the cache without
+  running the action: no query, policy check or preparation, one store
+  lookup. Prefer calling cached reads through their code interface. A
+  `define` on a domain needs `use AshCache.Domain` after `use Ash.Domain`;
+  resource `define`s need nothing. The entry is keyed on the module, the
+  function, its arguments and every option (the whole actor, the tenant),
+  kept only when the read itself was served from or stored in the cache,
+  uses the read's `ttl`, and clears with the read's entries. Errors are
+  never kept. A plain `Ash.read/2` call still runs the action. A policy that
+  depends on anything other than the actor, the arguments or data whose
+  writes clear this cache is checked again only when the entry clears or
+  expires. Not transaction-aware. `context: %{ash_cache: :bypass}` skips it.
+  A hit emits `[:ash_cache, :read, :hit]`.
 - Cache only reads that are hot and tolerate staleness up to their `ttl`.
   Choose `ttl` per read: long for content that rarely changes, short for
   results that change without a write (time-based filters, data written

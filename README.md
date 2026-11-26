@@ -103,28 +103,36 @@ end
 Writes don't clear these results; they run out with their `ttl`. See
 "A slow calculation" in [Examples](documentation/topics/examples.md).
 
-### Ask the same cached read many times
+### Code-interface functions skip the action
 
-A cache hit through `Ash.read/2` or a code interface still runs the whole
-Ash read: the query is built, policies are checked, hooks run. For a read
-asked hundreds of times per request, call the cached read through
-`AshCache.read/4` or `AshCache.read_one/4`, the cached read answered
-without running the action:
+A code-interface function of a read listed in the `cache` block answers a
+repeated call from the cache without running the action: no query, no
+policy check, no preparation, one store lookup.
 
 ```elixir
-AshCache.read_one(MyApp.Shop.Product, :get_by_sku, %{sku: "A1"}, actor: user)
+code_interface do
+  define :get_by_sku, args: [:sku]
+end
+
+MyApp.Shop.Product.get_by_sku("A1", actor: user)
 ```
 
-They take the arguments `Ash.Query.for_read/4` takes and return what
-`Ash.read/2` and `Ash.read_one/2` return. The action must be a `read` in the
-`cache` block. A hit is one store lookup. The entry is keyed on the actor
-(all of it, not only its id), the tenant and every other option, and it
-clears whenever the read's own entries do.
+This works for the `!` form too. For a `define` on a domain, add
+`use AshCache.Domain` after `use Ash.Domain`.
 
-Two limits: a policy that depends on something other than the actor, the
-arguments or data whose writes clear this cache (the time, a setting) is
-checked again only when the entry expires or clears. Like every cached
-read, it is not transaction-aware.
+The entry is keyed on the function, its arguments and all its options,
+including the whole actor (not only its id) and the tenant. Everything
+that clears the read clears it too. `context: %{ash_cache: :bypass}` skips
+it.
+
+Limits:
+
+- A plain `Ash.read/2` or `Ash.Query` call still runs the action; its hit
+  is answered inside the action, which is much slower.
+- It is not transaction-aware.
+- A policy that depends on something other than the actor, the arguments
+  or data whose writes clear this cache (the time, a setting) is checked
+  again only when the entry clears or runs out.
 
 ### Clearing the cache
 

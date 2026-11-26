@@ -41,6 +41,21 @@ Empty results are not saved by default. Otherwise a record that does not
 exist yet would keep being reported as missing until the entry expired.
 Set `cache_empty?: true` on the `read` to save them anyway.
 
+### Through a code-interface function
+
+A code-interface function of a cached read (a `define` on the resource, or
+on a domain that has `use AshCache.Domain`) looks in the cache before Ash
+does anything. Its key is the module, the function, the read's cache
+version, the arguments and every option, including the whole actor and the
+tenant. If the key is found, the stored result is returned: no query, no
+policy check, no preparation. If not, the function runs as normal and
+saves its result only when the read itself was served from or saved in
+the cache, so empty results and `clear_when_changed` follow the read's own
+rules. Errors are never saved.
+
+A plain `Ash.read/2` call has no such step: its hit is found inside the
+action, after the query is built and policies are checked.
+
 ## On a generic action call
 
 Ash has no step that can skip a generic action's `run` function. So for
@@ -229,6 +244,13 @@ In order from smallest to largest:
   until the `ttl` runs out.
 - **Any attribute change recomputes a calculation.** Every attribute is in
   the key, also the ones the calculation does not use.
+- **A code-interface hit trusts the earlier policy check.** A policy that
+  depends on something other than the actor, the arguments or data whose
+  writes clear this cache (the time, a setting) is checked again only when
+  the entry clears or runs out.
+- **Not transaction-aware.** A cached read inside a transaction can be
+  answered from the cache, so it may not see that transaction's own
+  writes, which clear the cache only after the commit.
 - **No sharing of simultaneous misses for calculations.** Reads and generic
   actions share one run (see "When many requests miss at once"); calculations
   don't, so identical misses at the same moment each run the calculation.
