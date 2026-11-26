@@ -60,7 +60,7 @@ defmodule AshCache.CachedCallTest do
     end
   end
 
-  defp forget_counts do
+  defp discard_counts do
     count(:preparation_ran)
     count(:policy_checked)
     ash_runs()
@@ -111,7 +111,7 @@ defmodule AshCache.CachedCallTest do
     test "regression: a warm AshCache.read_one runs no Ash action" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read_one(CountedWidget, :get_by_name, %{name: "w"}, actor: %User{id: 1})
-      forget_counts()
+      discard_counts()
 
       assert {:ok, %CountedWidget{name: "w"}} =
                AshCache.read_one(CountedWidget, :get_by_name, %{name: "w"}, actor: %User{id: 1})
@@ -125,7 +125,7 @@ defmodule AshCache.CachedCallTest do
     test "regression: a warm AshCache.read runs no Ash action" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read(CountedWidget, :read, %{}, actor: %User{id: 1})
-      forget_counts()
+      discard_counts()
 
       assert {:ok, [%CountedWidget{name: "w"}]} =
                AshCache.read(CountedWidget, :read, %{}, actor: %User{id: 1})
@@ -134,7 +134,7 @@ defmodule AshCache.CachedCallTest do
       assert ash_runs() == 0
     end
 
-    test "regression: a warm hit costs under 2_000 reductions and a tenth of a warm Ash.read_one" do
+    test "regression: a warm hit costs under 750 reductions and a tenth of a warm Ash.read_one" do
       create!(CountedWidget, %{name: "w"})
       actor = %User{id: 1}
 
@@ -154,14 +154,14 @@ defmodule AshCache.CachedCallTest do
       plain_cost = median_reductions(plain_read_one)
       cached_cost = median_reductions(cached_read_one)
 
-      assert cached_cost < 2_000
+      assert cached_cost < 750
       assert cached_cost * 10 <= plain_cost
     end
 
     test "the warm hit event carries the resource, the action and the store" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read_one(CountedWidget, :get_by_name, %{name: "w"})
-      forget_counts()
+      discard_counts()
 
       AshCache.read_one(CountedWidget, :get_by_name, %{name: "w"})
 
@@ -245,7 +245,7 @@ defmodule AshCache.CachedCallTest do
     test "AshCache.invalidate/1 makes the next call run the action" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read(CountedWidget, :read)
-      forget_counts()
+      discard_counts()
 
       AshCache.invalidate(CountedWidget)
       AshCache.read(CountedWidget, :read)
@@ -256,7 +256,7 @@ defmodule AshCache.CachedCallTest do
     test "a write to a resource in clear_when_changed makes the next call read again" do
       create!(Post, %{name: "p"})
       AshCache.read(Post, :read)
-      forget_counts()
+      discard_counts()
 
       create!(Comment, %{name: "c"})
       AshCache.read(Post, :read)
@@ -267,7 +267,7 @@ defmodule AshCache.CachedCallTest do
     test "an expired entry makes the next call run the action" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read(CountedWidget, :read)
-      forget_counts()
+      discard_counts()
 
       expire_call_entries()
       AshCache.read(CountedWidget, :read)
@@ -291,7 +291,7 @@ defmodule AshCache.CachedCallTest do
     test "different actors" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read(CountedWidget, :read, %{}, actor: %User{id: 1})
-      forget_counts()
+      discard_counts()
 
       AshCache.read(CountedWidget, :read, %{}, actor: %User{id: 2})
 
@@ -301,7 +301,7 @@ defmodule AshCache.CachedCallTest do
     test "one actor whose attributes changed" do
       create!(CountedWidget, %{name: "w"})
       AshCache.read(CountedWidget, :read, %{}, actor: %User{id: 1, role: :admin})
-      forget_counts()
+      discard_counts()
 
       AshCache.read(CountedWidget, :read, %{}, actor: %User{id: 1, role: :guest})
 
@@ -379,7 +379,7 @@ defmodule AshCache.CachedCallTest do
       create!(CountedWidget, %{name: "w"})
       bypass = [context: %{ash_cache: :bypass}]
       AshCache.read(CountedWidget, :read, %{}, bypass)
-      forget_counts()
+      discard_counts()
 
       assert names(AshCache.read(CountedWidget, :read, %{}, bypass)) == ["w"]
       assert count(:policy_checked) == 1

@@ -196,8 +196,9 @@ defmodule AshCache.Preparations.ReadThrough do
 
     Ash.Query.after_action(query, fn _query, records ->
       if cacheable?(records, cache_empty?) and
-           Dependencies.all_known?(query, records, Keyword.get(opts, :clear_when_changed, [])) do
-        Store.put(store, key, records, store_opts)
+           Dependencies.all_known?(query, records, Keyword.get(opts, :clear_when_changed, [])) and
+           Store.put(store, key, records, store_opts) == :ok do
+        mark_served_or_stored(query)
       end
 
       release(lease, {:ok, records})
@@ -206,12 +207,23 @@ defmodule AshCache.Preparations.ReadThrough do
     end)
   end
 
+  @doc false
+  @spec take_served_or_stored(reference()) :: boolean()
+  def take_served_or_stored(mark), do: Process.delete({:ash_cache_call, mark}) == true
+
+  defp mark_served_or_stored(%{context: %{ash_cache_call: mark}}),
+    do: Process.put({:ash_cache_call, mark}, true)
+
+  defp mark_served_or_stored(_query), do: :ok
+
   defp cacheable?(records, cache_empty?), do: cache_empty? or records not in [nil, []]
 
   # The rows already hold the aggregates they were cached with. Left on the
   # query, Ash would compute them again over rows it was handed, and that
   # load never returns.
   defp serve(query, records) do
+    mark_served_or_stored(query)
+
     query
     |> Ash.Query.unset(:aggregates)
     |> Ash.Query.set_result({:ok, records})
