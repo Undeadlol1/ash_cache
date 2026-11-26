@@ -38,3 +38,35 @@ defmodule AshCache.Test.ProbedWidget do
     end
   end
 end
+
+defmodule AshCache.Test.TransactionalWidget do
+  @moduledoc """
+  A `ProbedWidget` on Mnesia, whose data layer can open a transaction, so a
+  test can read inside one.
+  """
+
+  use Ash.Resource,
+    domain: AshCache.Test.Domain,
+    data_layer: Ash.DataLayer.Mnesia,
+    extensions: [AshCache.Resource]
+
+  cache do
+    read(:probed, ttl: to_timeout(hour: 1))
+  end
+
+  mnesia do
+    table(:ash_cache_transactional_widgets)
+  end
+
+  attributes do
+    uuid_primary_key(:id)
+    attribute(:value, :integer, public?: true)
+  end
+
+  actions do
+    read :probed do
+      argument(:probe, :term, allow_nil?: false)
+      manual(AshCache.Test.ProbedRead)
+    end
+  end
+end
