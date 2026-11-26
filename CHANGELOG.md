@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixes
+
+- A read inside a database transaction never waits for, or shares with,
+  another process's read of the same key. It used to hold its connection
+  while waiting, which could stall both for `rebuild_timeout`.
+
 ### Changes
 
 - `AshCache.read/4` and `AshCache.read_one/4` are the cached read, answered

@@ -6,7 +6,8 @@ defmodule AshCache.Coalesce do
   again would read the data layer. Instead, the first request for a cache
   key becomes the *leader* and reads; the others wait and get its records.
   Requests share a read only when their whole cache key is equal, so actor
-  and tenant isolation is the same as for cached entries.
+  and tenant isolation is the same as for cached entries. A read inside a
+  database transaction never waits for, or shares with, another process.
 
   If the leader's read fails or its process dies, the waiters start over and
   one of them leads the next read. If the leader takes longer than
@@ -40,8 +41,18 @@ defmodule AshCache.Coalesce do
   then call `release/2`, `{:shared, records}` with the leader's records,
   `:retry` when the leader failed (look in the cache again: another waiter
   may already have rebuilt it, then join again), or `:alone` when the leader
-  took too long and the caller should just read.
+  took too long, or the caller is inside a database transaction, and the
+  caller should just read.
+
+  A read inside a transaction never leads or waits: it would hold a database
+  connection while it waits, and it sees rows no other process may see.
   """
+  @spec join(term(), Ash.Resource.t()) :: :lead | {:shared, term()} | :retry | :alone
+  def join(key, resource) do
+    if Ash.DataLayer.in_transaction?(resource), do: :alone, else: join(key)
+  end
+
+  @doc "Like `join/2` for a value that is not read from a resource's data layer."
   @spec join(term()) :: :lead | {:shared, term()} | :retry | :alone
   def join(key) do
     key = scoped(key)

@@ -90,7 +90,7 @@ defmodule AshCache.Preparations.ReadThrough do
   end
 
   defp rebuild(query, store, key, opts, context, lease) do
-    case Coalesce.join({store, key}) do
+    case Coalesce.join({store, key}, query.resource) do
       {:shared, records} ->
         emit_read_event(:hit, query, store)
         serve(query, records)

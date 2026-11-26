@@ -31,6 +31,9 @@ the limit with:
 config :ash_cache, rebuild_timeout: :timer.seconds(10)
 ```
 
+A read inside a database transaction never waits for, or shares with,
+another process: it asks the database itself.
+
 This happens on each server separately, whatever the store: with several
 servers, each one asks the database at most once per key at a time.
 
