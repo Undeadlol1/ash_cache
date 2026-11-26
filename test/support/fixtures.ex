@@ -671,6 +671,56 @@ defmodule AshCache.Test.Article do
   widget_actions()
 end
 
+defmodule AshCache.Test.CountingCheck do
+  @moduledoc "A read policy check that reports each evaluation to the calling process."
+
+  use Ash.Policy.SimpleCheck
+
+  @impl true
+  def describe(_opts), do: "counts its evaluations"
+
+  @impl true
+  def match?(_actor, _context, _opts) do
+    send(self(), :policy_checked)
+    true
+  end
+end
+
+defmodule AshCache.Test.CountingPreparation do
+  @moduledoc "A preparation that reports each run to the calling process."
+
+  use Ash.Resource.Preparation
+
+  @impl true
+  def prepare(query, _opts, _context) do
+    send(self(), :preparation_ran)
+    query
+  end
+end
+
+defmodule AshCache.Test.CountedWidget do
+  @moduledoc """
+  Cached-call case: every read runs a counting policy check and a counting
+  preparation, so a test can tell whether an Ash read action ran at all.
+  """
+
+  use AshCache.Test.WidgetScaffold,
+    extensions: [AshCache.Resource],
+    authorizers: [Ash.Policy.Authorizer],
+    read_policy: AshCache.Test.CountingCheck
+
+  cache do
+    read(:read, ttl: to_timeout(minute: 7))
+    read(:get_by_name, ttl: to_timeout(minute: 7))
+  end
+
+  widget_attributes()
+
+  widget_actions do
+    prepare(AshCache.Test.CountingPreparation)
+  end
+end
+
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
@@ -708,5 +758,6 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.Parcel)
     resource(AshCache.Test.CachedComment)
     resource(AshCache.Test.Article)
+    resource(AshCache.Test.CountedWidget)
   end
 end

@@ -57,6 +57,14 @@ defmodule AshCache do
   @spec clear_store(atom()) :: :ok | {:error, term()}
   def clear_store(store), do: Store.clear(store)
 
+  def read(resource, action, params \\ %{}, opts \\ []) do
+    resource |> Ash.Query.for_read(action, params, opts) |> Ash.read(opts)
+  end
+
+  def read_one(resource, action, params \\ %{}, opts \\ []) do
+    resource |> Ash.Query.for_read(action, params, opts) |> Ash.read_one(opts)
+  end
+
   @doc """
   Keeps one small derived value in the resource's store and answers it
   without running any Ash action.
