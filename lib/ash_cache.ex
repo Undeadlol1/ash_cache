@@ -15,8 +15,9 @@ defmodule AshCache do
   the metadata.
 
     * `[:ash_cache, :read, :hit]` - a cached read was answered without the
-      data layer: from the store, or with the records of an identical read
-      running at the same time (see `AshCache.Coalesce`). Metadata:
+      data layer: from the store, with the records of an identical read
+      running at the same time (see `AshCache.Coalesce`), or by a cached
+      read's code-interface function without running the action. Metadata:
       `:resource`, `:action`, `:store`.
     * `[:ash_cache, :read, :miss]` - a cached read was not in the store and
       went to the data layer. Metadata: `:resource`, `:action`, `:store`,

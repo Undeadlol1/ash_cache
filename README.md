@@ -42,7 +42,7 @@ Add the package to `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ash_cache, "~> 0.2"},
+    {:ash_cache, "~> 0.3"},
     {:cachex, "~> 3.6"}
   ]
 end
@@ -102,6 +102,37 @@ end
 
 Writes don't clear these results; they run out with their `ttl`. See
 "A slow calculation" in [Examples](documentation/topics/examples.md).
+
+### Code-interface functions skip the action
+
+A code-interface function of a read listed in the `cache` block answers a
+repeated call from the cache without running the action: no query, no
+policy check, no preparation, one store lookup.
+
+```elixir
+code_interface do
+  define :get_by_sku, args: [:sku]
+end
+
+MyApp.Shop.Product.get_by_sku("A1", actor: user)
+```
+
+This works for the `!` form too. For a `define` on a domain, add
+`use AshCache.Domain` after `use Ash.Domain`.
+
+The entry is keyed on the function, its arguments and all its options,
+including the whole actor (not only its id) and the tenant. Everything
+that clears the read clears it too. `context: %{ash_cache: :bypass}` skips
+it.
+
+Limits:
+
+- A plain `Ash.read/2` or `Ash.Query` call still runs the action; its hit
+  is answered inside the action, which is much slower.
+- It is not transaction-aware.
+- A policy that depends on something other than the actor, the arguments
+  or data whose writes clear this cache (the time, a setting) is checked
+  again only when the entry clears or runs out.
 
 ### Clearing the cache
 

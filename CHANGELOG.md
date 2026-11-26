@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 — 2026-11-27
+
+### Fixes
+
+- A read inside a database transaction never waits for, or shares with,
+  another process's read of the same key. It used to hold its connection
+  while waiting, which could stall both for `rebuild_timeout`.
+
+### Changes
+
+- A code-interface function of a read listed in the `cache` block, on the
+  resource or on a domain, answers a repeated call from the cache without
+  running the action: one store lookup instead of the whole Ash read
+  (about 80 reductions against 22,000 in the suite). Nothing to call
+  differently; a domain with such a `define` adds `use AshCache.Domain`.
+  Everything that clears the cached read clears these entries too.
+
 ## 0.2.1 — 2026-11-06
 
 ### Changes

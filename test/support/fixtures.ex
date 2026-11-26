@@ -120,6 +120,13 @@ defmodule AshCache.Test.CachedWidget do
   aggregates do
     count(:part_count, :parts)
   end
+
+  code_interface do
+    define(:get_by_name, args: [:name])
+    define(:list, action: :read)
+    define(:only_one, action: :read, get?: true)
+    define(:paged, action: :paged)
+  end
 end
 
 defmodule AshCache.Test.Part do
@@ -151,6 +158,11 @@ defmodule AshCache.Test.PartiallyCachedWidget do
 
   widget_attributes()
   widget_actions()
+
+  code_interface do
+    define(:get_by_name, args: [:name])
+    define(:list, action: :read)
+  end
 end
 
 defmodule AshCache.Test.RecachedWidget do
@@ -188,6 +200,10 @@ defmodule AshCache.Test.GuardedWidget do
 
   widget_attributes()
   widget_actions()
+
+  code_interface do
+    define(:list, action: :read)
+  end
 end
 
 defmodule AshCache.Test.OwnedWidget do
@@ -340,6 +356,10 @@ defmodule AshCache.Test.TenantWidget do
 
   actions do
     defaults([:read, create: :*])
+  end
+
+  code_interface do
+    define(:list, action: :read)
   end
 end
 
@@ -512,6 +532,10 @@ defmodule AshCache.Test.Post do
 
   widget_attributes()
   widget_actions()
+
+  code_interface do
+    define(:list, action: :read)
+  end
 end
 
 defmodule AshCache.Test.Feed do
@@ -671,10 +695,67 @@ defmodule AshCache.Test.Article do
   widget_actions()
 end
 
+defmodule AshCache.Test.CountingCheck do
+  @moduledoc "A read policy check that reports each evaluation to the calling process."
+
+  use Ash.Policy.SimpleCheck
+
+  @impl true
+  def describe(_opts), do: "counts its evaluations"
+
+  @impl true
+  def match?(_actor, _context, _opts) do
+    send(self(), :policy_checked)
+    true
+  end
+end
+
+defmodule AshCache.Test.CountingPreparation do
+  @moduledoc "A preparation that reports each run to the calling process."
+
+  use Ash.Resource.Preparation
+
+  @impl true
+  def prepare(query, _opts, _context) do
+    send(self(), :preparation_ran)
+    query
+  end
+end
+
+defmodule AshCache.Test.CountedWidget do
+  @moduledoc """
+  Cached-call case: every read runs a counting policy check and a counting
+  preparation, so a test can tell whether an Ash read action ran at all.
+  """
+
+  use AshCache.Test.WidgetScaffold,
+    extensions: [AshCache.Resource],
+    authorizers: [Ash.Policy.Authorizer],
+    read_policy: AshCache.Test.CountingCheck
+
+  cache do
+    read(:read, ttl: to_timeout(minute: 7))
+    read(:get_by_name, ttl: to_timeout(minute: 7))
+  end
+
+  widget_attributes()
+
+  widget_actions do
+    prepare(AshCache.Test.CountingPreparation)
+  end
+
+  code_interface do
+    define(:get_by_name, args: [:name])
+    define(:list, action: :read)
+    define(:create_widget, action: :create, args: [:name])
+  end
+end
+
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
   use Ash.Domain, validate_config_inclusion?: false
+  use AshCache.Domain
 
   resources do
     resource(AshCache.Test.Widget)
@@ -694,6 +775,7 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.InfiniteBlockWidget)
     resource(AshCache.Test.InfiniteReadWidget)
     resource(AshCache.Test.ProbedWidget)
+    resource(AshCache.Test.TransactionalWidget)
     resource(AshCache.Test.TenantWidget)
     resource(AshCache.Test.ViewerWidget)
     resource(AshCache.Test.RecachedTenantWidget)
@@ -708,5 +790,9 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.Parcel)
     resource(AshCache.Test.CachedComment)
     resource(AshCache.Test.Article)
+
+    resource AshCache.Test.CountedWidget do
+      define(:get_counted_widget_by_name, action: :get_by_name, args: [:name])
+    end
   end
 end

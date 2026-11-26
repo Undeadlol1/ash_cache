@@ -65,7 +65,7 @@ defmodule AshCache.Actions.RunThrough do
   end
 
   defp rebuild(input, opts, context, store, key) do
-    case Coalesce.join({store, key}) do
+    case Coalesce.join({store, key}, input.resource) do
       {:shared, result} ->
         emit(:hit, input, store)
         {:ok, result}
