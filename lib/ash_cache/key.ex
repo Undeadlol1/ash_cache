@@ -23,6 +23,11 @@ defmodule AshCache.Key do
       (`AshCache.Calculations.CalculateThrough`); there is no version
     * the actor and tenant, so cached results never leak across actors
       or tenants
+
+  `AshCache.read/4` and `AshCache.read_one/4` key their own entries on the
+  call itself, with no query built: `{:ash_cache_call, resource, version,
+  action, :read | :read_one, params, opts}`, where `opts` holds the whole
+  actor, the tenant and every other option.
   """
 
   @type t ::

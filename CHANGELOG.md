@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- `AshCache.read/4` and `AshCache.read_one/4` are the cached read, answered
+  without running the action. They take what `Ash.Query.for_read/4` takes
+  and return what `Ash.read/2` and `Ash.read_one/2` return; a hit is one
+  store lookup instead of the whole Ash read pipeline (about 140 reductions
+  against 22,000 in the suite). Everything that clears the cached read
+  clears them too.
+
 ## 0.2.1 — 2026-11-06
 
 ### Changes

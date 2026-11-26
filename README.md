@@ -103,6 +103,29 @@ end
 Writes don't clear these results; they run out with their `ttl`. See
 "A slow calculation" in [Examples](documentation/topics/examples.md).
 
+### Ask the same cached read many times
+
+A cache hit through `Ash.read/2` or a code interface still runs the whole
+Ash read: the query is built, policies are checked, hooks run. For a read
+asked hundreds of times per request, call the cached read through
+`AshCache.read/4` or `AshCache.read_one/4`, the cached read answered
+without running the action:
+
+```elixir
+AshCache.read_one(MyApp.Shop.Product, :get_by_sku, %{sku: "A1"}, actor: user)
+```
+
+They take the arguments `Ash.Query.for_read/4` takes and return what
+`Ash.read/2` and `Ash.read_one/2` return. The action must be a `read` in the
+`cache` block. A hit is one store lookup. The entry is keyed on the actor
+(all of it, not only its id), the tenant and every other option, and it
+clears whenever the read's own entries do.
+
+Two limits: a policy that depends on something other than the actor, the
+arguments or data whose writes clear this cache (the time, a setting) is
+checked again only when the entry expires or clears. Like every cached
+read, it is not transaction-aware.
+
 ### Clearing the cache
 
 Writes through Ash clear the cache by themselves. To clear it when a
