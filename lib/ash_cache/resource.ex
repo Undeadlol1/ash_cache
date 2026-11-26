@@ -74,6 +74,7 @@ defmodule AshCache.Resource do
     name: :cache,
     describe: "Which reads, generic actions and calculations to cache, where, and for how long.",
     entities: [@read, @action, @calculation, @recache],
+    after_define: {AshCache.CodeInterface, :register_hook},
     schema: [
       store: [
         type: :atom,

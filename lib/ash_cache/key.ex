@@ -24,9 +24,9 @@ defmodule AshCache.Key do
     * the actor and tenant, so cached results never leak across actors
       or tenants
 
-  `AshCache.read/4` and `AshCache.read_one/4` key their own entries on the
-  call itself, with no query built: `{:ash_cache_call, resource, version,
-  action, :read | :read_one, params, opts}`, where `opts` holds the whole
+  A cached read's code-interface function keys its own entries on the call
+  itself, with no query built: `{:ash_cache_call, module, function,
+  version, positional_args, params, opts}`, where `opts` holds the whole
   actor, the tenant and every other option.
   """
 

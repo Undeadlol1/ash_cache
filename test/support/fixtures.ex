@@ -120,6 +120,13 @@ defmodule AshCache.Test.CachedWidget do
   aggregates do
     count(:part_count, :parts)
   end
+
+  code_interface do
+    define(:get_by_name, args: [:name])
+    define(:list, action: :read)
+    define(:only_one, action: :read, get?: true)
+    define(:paged, action: :paged)
+  end
 end
 
 defmodule AshCache.Test.Part do
@@ -151,6 +158,11 @@ defmodule AshCache.Test.PartiallyCachedWidget do
 
   widget_attributes()
   widget_actions()
+
+  code_interface do
+    define(:get_by_name, args: [:name])
+    define(:list, action: :read)
+  end
 end
 
 defmodule AshCache.Test.RecachedWidget do
@@ -188,6 +200,10 @@ defmodule AshCache.Test.GuardedWidget do
 
   widget_attributes()
   widget_actions()
+
+  code_interface do
+    define(:list, action: :read)
+  end
 end
 
 defmodule AshCache.Test.OwnedWidget do
@@ -340,6 +356,10 @@ defmodule AshCache.Test.TenantWidget do
 
   actions do
     defaults([:read, create: :*])
+  end
+
+  code_interface do
+    define(:list, action: :read)
   end
 end
 
@@ -512,6 +532,10 @@ defmodule AshCache.Test.Post do
 
   widget_attributes()
   widget_actions()
+
+  code_interface do
+    define(:list, action: :read)
+  end
 end
 
 defmodule AshCache.Test.Feed do
@@ -719,12 +743,19 @@ defmodule AshCache.Test.CountedWidget do
   widget_actions do
     prepare(AshCache.Test.CountingPreparation)
   end
+
+  code_interface do
+    define(:get_by_name, args: [:name])
+    define(:list, action: :read)
+    define(:create_widget, action: :create, args: [:name])
+  end
 end
 
 defmodule AshCache.Test.Domain do
   @moduledoc false
 
   use Ash.Domain, validate_config_inclusion?: false
+  use AshCache.Domain
 
   resources do
     resource(AshCache.Test.Widget)
@@ -759,6 +790,9 @@ defmodule AshCache.Test.Domain do
     resource(AshCache.Test.Parcel)
     resource(AshCache.Test.CachedComment)
     resource(AshCache.Test.Article)
-    resource(AshCache.Test.CountedWidget)
+
+    resource AshCache.Test.CountedWidget do
+      define(:get_counted_widget_by_name, action: :get_by_name, args: [:name])
+    end
   end
 end
